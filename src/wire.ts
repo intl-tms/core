@@ -128,6 +128,15 @@ export interface SaveResult {
   results: Record<string, LocaleSaveResult>;
 }
 
+/** A translation that lives in an attribute: it has no visible text to click. */
+export interface HiddenItem {
+  /** Stable across rescans while the element survives. Address the item by this, never by position. */
+  id: string;
+  attribute: string;
+  key: string;
+  value: string;
+}
+
 /** What a save did to the page. */
 export type PageEffect = "updated" | "stale" | "untouched";
 

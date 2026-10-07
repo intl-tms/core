@@ -8,7 +8,9 @@ import { isPlain } from "./classification.js";
 import { createHighlighter, type HighlighterConfig } from "./highlighter.js";
 import { closePicker, openPicker } from "./picker.js";
 import type { Found } from "./scanner.js";
-import type { SaveOutcome, SaveResult, Usage, ValuesEnvelope } from "./wire.js";
+import type { HiddenItem, SaveOutcome, SaveResult, Usage, ValuesEnvelope } from "./wire.js";
+
+export type { HiddenItem } from "./wire.js";
 
 /** Where the session puts what an Editor should see. A Host turns each call into its own transport. */
 export interface SessionSink {
@@ -20,15 +22,6 @@ export interface SessionSink {
   setUsage(key: string, usages: Usage[], error: boolean): void;
   /** The page's attribute translations changed. */
   setHidden(items: HiddenItem[]): void;
-}
-
-/** A translation that lives in an attribute: it has no visible text to click. */
-export interface HiddenItem {
-  /** Stable across rescans while the element survives. Address the item by this, never by position. */
-  id: string;
-  attribute: string;
-  key: string;
-  value: string;
 }
 
 /** What {@link createSession} is built from. */

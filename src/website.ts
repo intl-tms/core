@@ -37,6 +37,7 @@ export type {
   ExpectedValues,
   FailureClass,
   FieldsOfWrite,
+  HiddenItem,
   IsUntyped,
   KeyMeta,
   KeyReference,

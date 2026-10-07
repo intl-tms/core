@@ -215,3 +215,44 @@ builder. Each says what was chosen and why.
   client (it should not) is reported as `error: "save-failed"`.
 - **A refused stale save** is `{ ok: false, error: "stale-selection", results:
   {}, page: "untouched" }`.
+
+## Panel logic and store (M9)
+
+- **State shape:** `selection { id, key, locale }`, `locales`, `schema`,
+  `sourceLocale`, `meta`, `draft`, `baseline`, `usages`, `usagesLoading`,
+  `usagesError`, `hidden`, `status { text, kind }`, `saving`, plus derived
+  `rowOrder`, `title`, `shared`, `requiredErrors`, `tagErrors`, `conflicts`,
+  `dirty { locales, columns, count }`, `unsavedKeys` and `canSave`.
+- **The store satisfies the session's sink structurally** (`open`,
+  `setValues`, `setUsage`, `setHidden`), so a Host can hand the store to the
+  session directly. `setConfig` is the one extra inbound call.
+- **Immutability:** inputs are cloned where they enter, the state is deep
+  frozen once, and parts that did not change keep their identity between
+  states (a keystroke in one row leaves the other rows' objects alone).
+- **"Loaded" Locale** (for required Fields) means the store returned a row for
+  it, or a save of it succeeded or came back as a conflict. The Current
+  Locale's page seed and the Source Locale's source-message seed do not count,
+  so seeds cannot block Save.
+- **Values for a Locale absent from the stored rows** leave that Locale's draft
+  and baseline alone, so the on-page seed is never wiped by a late read.
+- **Tag guard** checks a Locale only when its translation string changed (a
+  Field-only change would not put the string in the write).
+- **Guard order in `save`:** nothing changed, then required Fields, then the
+  tag guard. `canSave` reports the same order, preceded by no-selection,
+  no-persist and saving.
+- **Status tokens** follow the Locales in row order (the order of the diff),
+  joined by two spaces: `da ✓`, `da ✗ (500)`, `da ✗`, `da ⚠ changed elsewhere`.
+  A conflict needs the stored row in the result; a 409 without one is an
+  ordinary failure.
+- **What a save commits** is what was sent, not the draft at answer time, so
+  typing during a save stays dirty.
+- **Conflicts** record the conflicting columns with the server's own
+  `conflictingColumns`; the list shown is derived (columns still different from
+  the stored value), so typing back or cancelling clears it.
+- **Drafts across keys** live in the store (open question 5): leaving a dirty
+  key sets its draft, baseline, stored list and conflicts aside; opening it
+  puts them back. Reopening the key that is already open keeps its draft too.
+- **`explainSaveFailure`** returns `undefined` for success and for
+  conflict-only results.
+- **Not built (deferred):** memoised selectors (PNL-115), undo/redo, per-row
+  save state, retry, save-all, structured status codes, snapshot/restore.

@@ -17,3 +17,21 @@ export type { Client, ClientConfig, ClientOptions, Failure, LocaleWrite, ReadUsa
 export { resolveLocale } from "./locale.js";
 export { createSession } from "./session.js";
 export type { HiddenItem, Session, SessionOptions, SessionSink } from "./session.js";
+export { PANEL_TEXT, buildChanges, changedColumns, conflictNotice, explainSaveFailure, hiddenErrors, relativeTime, resolveToolbarFilters, shouldRenderToolbar, usagePath, visibleLocales } from "./panel-logic.js";
+export type { PanelWrite, ResolvedFilter, Row, Rows, VisibleLocalesInput } from "./panel-logic.js";
+export { createPanelStore } from "./panel-store.js";
+export type {
+  CanSave,
+  CannotSaveReason,
+  PanelConfig,
+  PanelDirty,
+  PanelRow,
+  PanelRows,
+  PanelSelection,
+  PanelState,
+  PanelStatus,
+  PanelStore,
+  PanelStoreOptions,
+  PersistOutcome,
+} from "./panel-store.js";
+export { fieldText } from "./wire.js";
