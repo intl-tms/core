@@ -259,8 +259,8 @@ builder. Each says what was chosen and why.
 
 ## End to end and release readiness (M10)
 
-- **Package name** is `@intl-tms/core` with two entries, `.` (website) and
-  `./tools` (editing tools). The scope is a placeholder: change it to your own.
+- **Package name** is `@intl-tms/core` (confirmed) with two entries, `.`
+  (website) and `./tools` (editing tools).
 - **Entry exports are pinned** in `test/entries.test.ts`, and the readme's two
   export tables are tested against the same runtime exports
   (`test/readme.test.ts`), so neither can drift.
@@ -292,8 +292,7 @@ rule of building only those a milestone lists:
   validation, richer Schema, highlight style options (VAL-21 to 26, SCH-30 to
   37, CFG-22 to 24, CFG-35 to 37).
 - Server: 403 versus 401, route/key/Locale and identity in authorization,
-  request identifiers, no-store, size limits, content-type and origin checks,
-  stored row and revision on writes, batch write, delete, audit and rate-limit
+  request identifiers, no-store, size limits, stored row and revision on writes, batch write, delete, audit and rate-limit
   hooks, atomic conflicts, bulk read, static usage ingestion, expiry,
   pagination, preflight max-age (SRV-26/27, AUT-4 to 6, RD-8 to 10, WR-30 to
   40, CON-20 to 23, USG-20 to 27, COR-8, COR-9).
@@ -316,3 +315,27 @@ rule of building only those a milestone lists:
   the codec, real-browser tests, machine-readable contract, recipes,
   self-check and diagnostics endpoint, authorization helpers, development
   warnings.
+
+## Cross-site request protection (after M10)
+
+- **Content type (WR-32):** a PUT or POST must declare `application/json`
+  (parameters such as `charset` are ignored, matching is case-insensitive).
+  Anything else, or nothing, is `415` with code `unsupported-media-type`. It is
+  judged at the start of body reading, after authorization, like the rest of
+  body validation.
+- **Origin check (COR-9):** for writes only, after the method check and before
+  authorization, a request carrying an `Origin` header is refused with `403` and
+  code `forbidden-origin` unless that origin equals the request URL's origin,
+  the origin of the configured base path (or values template), or a listed
+  cross-origin origin. The base path origin is accepted so a proxy that rewrites
+  the request URL does not break same-site saves.
+- **No `Origin` header is allowed.** Browsers send it on every cross-site write;
+  its absence means a non-browser caller with no ambient cookies. A deployment
+  that must refuse those too can do so in `authorize`.
+- **`Origin: null` is refused** (sandboxed frames and some privacy-stripped
+  form posts).
+- **Reads are not origin-checked**; the cross-origin policy decides who may read
+  the answer.
+- **Order:** method (405), origin (403), authorization (401), content type
+  (415), JSON (400). A forged cross-site form post therefore never reaches
+  authorization, storage or the body rules.

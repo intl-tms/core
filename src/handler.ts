@@ -86,6 +86,8 @@ export type ErrorCode =
   | "not-found"
   | "method-not-allowed"
   | "conflict"
+  | "forbidden-origin"
+  | "unsupported-media-type"
   | "internal-error";
 
 function json(status: number, body: unknown, headers?: Record<string, string>): Response {
@@ -147,6 +149,9 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
     throw new ConfigError("cors.origins contains a wildcard", "a wildcard origin cannot be combined with credentials, so cross-origin access is only allowed for an explicit list", "list each origin exactly as a browser sends it, for example https://app.example.com");
   }
   const corsOrigins = new Set(cors?.origins ?? []);
+  // The website's public origin, from the configuration: behind a proxy that
+  // rewrites the request URL, the origin a browser sends is still this one.
+  const ownOrigins = new Set<string>([new URL(config.basePath ?? config.endpoints.values).origin]);
   const onError = options.onError ?? ((error: unknown) => console.error("[core] request failed", error));
 
   const report = (error: unknown, request: Request): void => {
@@ -244,6 +249,11 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
   };
 
   const readJsonObject = async (request: Request): Promise<Record<string, unknown> | Response> => {
+    // A cross-site HTML form can only send text/plain, urlencoded or multipart
+    // bodies without a preflight. Requiring JSON closes cookie-authenticated
+    // cross-site form submission, together with the origin check.
+    const type = (request.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
+    if (type !== "application/json") return fail(415, "writes must be sent as application/json", "unsupported-media-type");
     let body: unknown;
     try {
       body = JSON.parse(await request.text());
@@ -308,6 +318,16 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
     }
     if (!matched.methods.split(", ").includes(request.method)) return fail(405, "method not allowed", "method-not-allowed", { allow: matched.methods });
     const operation: Operation = request.method === "GET" ? "read" : "write";
+    // Origin check for writes, before authorization: a write whose origin is
+    // neither the website's own nor listed in the cross-origin policy is refused.
+    // A browser always sends Origin on a cross-site write; a request without one
+    // (a server, a script) carries no ambient cookies to abuse.
+    if (operation === "write") {
+      const origin = request.headers.get("origin");
+      if (origin !== null && origin !== new URL(request.url).origin && !ownOrigins.has(origin) && !corsOrigins.has(origin)) {
+        return fail(403, "origin not allowed", "forbidden-origin");
+      }
+    }
     if ((await options.authorize({ request, operation })) !== true) return fail(401, "unauthorized", "unauthorized");
     return matched.serve(request);
   };

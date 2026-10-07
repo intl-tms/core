@@ -113,8 +113,8 @@ stored value differs from what was expected **and** from what is being written
 answers `409 { error: "conflict", current }` and nothing is written.
 
 Every error is `{ error, code }`. Statuses: `400` invalid body or path, `401`
-authorization denied, `404` no such route, `405` wrong method (with `Allow`),
-`409` write conflict, `500` fixed generic body. The real cause of a 500 goes to
+authorization denied, `403` origin not allowed, `404` no such route, `405` wrong method (with `Allow`),
+`409` write conflict, `415` write not sent as JSON, `500` fixed generic body. The real cause of a 500 goes to
 your `onError` hook, never to the response.
 
 ## Security
@@ -143,9 +143,16 @@ your `onError` hook, never to the response.
 - **Stored usage URLs must be http or https**, checked where they enter.
   Tools that follow one should check again with `isHttpUrl`.
 - **Text is only ever inserted into the page as text**, never as markup.
-- **Write requests are not yet required to carry a JSON content type**, and the
-  handler does not yet apply an origin check to cookie-authenticated writes. If
-  your authorization relies on cookies, add your own CSRF protection.
+- **Cross-site request protection for writes.** Every write (PUT and POST)
+  must be sent as `application/json`, which a cross-site HTML form cannot do
+  without a preflight, and a write whose `Origin` is neither the website's own
+  nor listed in your cross-origin policy is refused with `403` **before
+  authorization runs**. "The website's own" is the origin of the request URL or
+  of your base path, so a proxy that rewrites the URL is fine. A request with no
+  `Origin` header (a server, a script) is allowed: it carries no ambient
+  cookies to abuse. If a browser extension talks to your endpoints from its own
+  origin, list that origin in `cors.origins`. Reads are not origin-checked; the
+  cross-origin policy decides who may read the answer.
 - **The highlighter injects one `<style>` element.** It never writes inline
   styles, but a page whose content security policy forbids inline `<style>`
   elements needs `style-src` to allow it for editing sessions.
@@ -239,7 +246,7 @@ configuration is a compile error. Reserved Field names (`value`, `locale`,
 
 The baseline is complete. These improvements are specified but deliberately left
 for later: lazy and excluded Catalog marking, the gate helper, batch writes,
-atomic conflicts, incremental and time-sliced scanning, bulk read and prefetch,
+atomic conflicts, size limits on bodies, keys and values, incremental and time-sliced scanning, bulk read and prefetch,
 request cancellation, server-side message guards, rate limits, the diagnostics
 endpoint, localisable panel text, undo, per-row save state, and real-browser
 tests. `DECISIONS.md` lists every choice made where the specification was silent.

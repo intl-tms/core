@@ -198,7 +198,7 @@ describe("write body validation, in order", () => {
   it("W22: with no Schema a fields entry is 400 unknown field", async () => {
     const bare = resolveConfig({ locales: ["en", "da"], basePath: `${ORIGIN}${MOUNT}` });
     const handler = createHandler({ config: bare, adapter: createMemoryAdapter(), authorize: () => true });
-    const response = await handler(new Request(`${ORIGIN}${PATH}`, { method: "PUT", body: JSON.stringify({ locale: "da", fields: { status: "x" } }) }));
+    const response = await handler(new Request(`${ORIGIN}${PATH}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ locale: "da", fields: { status: "x" } }) }));
     expect((await response.json()).error).toBe('unknown field "status"');
   });
 });
