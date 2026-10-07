@@ -138,6 +138,34 @@ describe("highlighter: highlighting", () => {
   });
 });
 
+describe("highlighter: the stylesheet is valid CSS", () => {
+  const sheet = () => {
+    document.body.innerHTML = `<p>${mark("Hi", "k")}</p>`;
+    make().scan(document);
+    return (document.querySelector("style[data-tms-hl-style]") as HTMLStyleElement).sheet!;
+  };
+
+  it("a CSS parser reads every rule", () => {
+    expect(sheet().cssRules).toHaveLength(5);
+  });
+
+  it("the rules select on the marker attributes", () => {
+    expect([...sheet().cssRules].map((r) => (r as CSSStyleRule).selectorText)).toEqual([
+      `[${HL}]`,
+      `[${HL_ATTR}]`,
+      `[${HL_ACTIVE}]`,
+      `[${HL_FLASH}]`,
+      `[${HL_FLASH}][${HL_ATTR}]`,
+    ]);
+  });
+
+  it("a browser-grade cascade gives a highlighted element the resting outline colour", () => {
+    document.body.innerHTML = `<p id="p">${mark("Hi", "k")}</p>`;
+    make().scan(document);
+    expect(getComputedStyle(byId("p")).outlineColor).not.toBe("");
+  });
+});
+
 describe("highlight settings", () => {
   it("the defaults apply when nothing is configured", () => {
     expect(highlightSettings(undefined).colors).toEqual({ highlight: "#4CAF50", active: "#2196F3" });

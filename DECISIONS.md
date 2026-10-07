@@ -256,3 +256,63 @@ builder. Each says what was chosen and why.
   conflict-only results.
 - **Not built (deferred):** memoised selectors (PNL-115), undo/redo, per-row
   save state, retry, save-all, structured status codes, snapshot/restore.
+
+## End to end and release readiness (M10)
+
+- **Package name** is `@intl-tms/core` with two entries, `.` (website) and
+  `./tools` (editing tools). The scope is a placeholder: change it to your own.
+- **Entry exports are pinned** in `test/entries.test.ts`, and the readme's two
+  export tables are tested against the same runtime exports
+  (`test/readme.test.ts`), so neither can drift.
+- **The quick start is executed**: the readme's code block is extracted, its
+  import rewritten to the source, and run against a real request.
+- **Module-graph checks** (`test/package.test.ts`) follow relative imports from
+  each entry. The website graph must contain no DOM module and mention no DOM
+  global in code; the editing-tool graph must contain no server module; every
+  source module must belong to an entry. Each guard was shown to fail on a
+  deliberate violation.
+- **Definition-of-done guards:** every exported declaration has a doc comment,
+  no shipped doc comment references anything outside the package, no source file
+  imports a non-relative module, the source never evaluates strings or injects
+  markup, and no lint or type suppression exists anywhere.
+- **Browser-grade rendering is unproven.** Everything here runs in a simulated
+  DOM. Shaping, line breaking, overlay positioning and real clipboard behaviour
+  of the Marker alphabet need the real-browser run the specification lists as an
+  improvement (TST-10).
+
+## Deferred (specified, deliberately not built)
+
+Baseline requirements are all built. Improvements (▲) not built, by the plan's
+rule of building only those a milestone lists:
+
+- Catalog: lazy marking, exclusion, key mapping (CAT-21, 23, 24, 25); the gate
+  helper (TGL-4).
+- Codec: decode-all and compact mode (MRK-25, 26).
+- Configuration: collect-all validation, stricter Locale/colour/attribute
+  validation, richer Schema, highlight style options (VAL-21 to 26, SCH-30 to
+  37, CFG-22 to 24, CFG-35 to 37).
+- Server: 403 versus 401, route/key/Locale and identity in authorization,
+  request identifiers, no-store, size limits, content-type and origin checks,
+  stored row and revision on writes, batch write, delete, audit and rate-limit
+  hooks, atomic conflicts, bulk read, static usage ingestion, expiry,
+  pagination, preflight max-age (SRV-26/27, AUT-4 to 6, RD-8 to 10, WR-30 to
+  40, CON-20 to 23, USG-20 to 27, COR-8, COR-9).
+- Page: shadow roots and frames, incremental and time-sliced scanning,
+  visibility, overlay and range highlight, keyboard access, pass-through
+  modifier, hover and badges, pause, observation re-establishment, accessible
+  and themed picker, live preview, soft refresh, cancellation, prefetch, page
+  inventory, navigation awareness (SCN-20 to 27, HL-61 to 71, PCK-10 to 14,
+  SES-41 to 49).
+- Client: batch and concurrent saves, cancellation signals, retries, read cache,
+  de-duplication, bounded usage signatures, idle batching, back-off, fetching
+  the configuration, request hook (CLI-70 to 81).
+- Panel: memoised selectors, save all, per-column revert, undo and redo,
+  structured status and localisable text, per-Locale save state, retry failed,
+  per-column conflict resolution, value loading states, retained error reasons,
+  completeness, copy from source, suggestion hook, companion toolbar store,
+  richer live guards, length feedback, snapshot and restore, event stream
+  (PNL-103 to 120).
+- Quality: finer entries with size budgets, benchmarks, property tests beyond
+  the codec, real-browser tests, machine-readable contract, recipes,
+  self-check and diagnostics endpoint, authorization helpers, development
+  warnings.

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { decode, strip } from "../src/codec.js";
 import { markCatalog } from "../src/catalog.js";
 
@@ -114,5 +114,12 @@ describe("catalog marking identity and key ambiguity", () => {
 
   it("a flat dotted key stays readable when the separator is not a dot", () => {
     expect(keyOf(markCatalog({ "pricing.title": "x" }, { separator: "/" })["pricing.title"])).toBe("pricing.title");
+  });
+});
+
+describe("catalog marking: static type", () => {
+  it("CAT-7: a typed Catalog stays typed", () => {
+    const catalog = { nav: { home: "Home" }, count: 3 };
+    expectTypeOf(markCatalog(catalog)).toEqualTypeOf<{ nav: { home: string }; count: number }>();
   });
 });
