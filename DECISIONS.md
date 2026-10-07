@@ -188,3 +188,30 @@ builder. Each says what was chosen and why.
   read or a save with no configuration fails.
 - **`resolveLocale`** returns the configured spelling, or the input unchanged;
   it does not report whether it matched.
+
+## Editing session (M8)
+
+- **Stable identity** is added to every finding (`id`): `t<n>` for a text node,
+  `a<n>:<attribute>` for an attribute, numbered per node by a module-level
+  `WeakMap`. Hidden items are addressed by it, never by list position.
+- **Client calls follow the announcement synchronously.** `sink.open` is called
+  first, then the values and usage reads are started together. A client that
+  throws or rejects is reported to the sink as empty data with the error flag.
+- **Late answers are dropped by the session** (not only by the panel): each
+  open takes a selection token, and an answer for an earlier token, or one
+  that arrives after `stop`, is not forwarded. This is redundant with the
+  panel's own key check but costs one integer.
+- **The Hidden list** starts "sent" as the empty list, so a page with no
+  attribute translations tells the sink nothing, and a list that becomes empty
+  is sent once.
+- **A save is judged against the Locale at completion**, i.e. the Current
+  Locale is read after the client answers, because the effect is on the page
+  the Editor is looking at now.
+- **A save that carries only Fields for the Current Locale** leaves the page
+  `untouched`: there is no value to show.
+- **Writing into the page** replaces the whole text node (or attribute) with
+  the re-marked value for every Occurrence of the key found by the last scan,
+  inside `silently`, then rescans immediately. A save that fails inside the
+  client (it should not) is reported as `error: "save-failed"`.
+- **A refused stale save** is `{ ok: false, error: "stale-selection", results:
+  {}, page: "untouched" }`.

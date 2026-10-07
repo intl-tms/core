@@ -49,6 +49,7 @@ describe("package entries", () => {
         "closePicker",
         "createClient",
         "createHighlighter",
+        "createSession",
         "highlightSettings",
         "isHttpUrl",
         "isSharedKey",

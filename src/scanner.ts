@@ -6,6 +6,11 @@ import { decode, detect, strip } from "./codec.js";
 /** A translation found as the text of an element. */
 export interface FoundText {
   kind: "text";
+  /**
+   * Stable across rescans for as long as the node survives, so a selection or
+   * a list item can be addressed by it instead of by position.
+   */
+  id: string;
   element: Element;
   node: Text;
   key: string;
@@ -16,6 +21,8 @@ export interface FoundText {
 /** A translation found in an element's attribute (a Hidden translation). */
 export interface FoundAttribute {
   kind: "attribute";
+  /** Stable across rescans for as long as the element survives. */
+  id: string;
   element: Element;
   attribute: string;
   key: string;
@@ -27,6 +34,16 @@ export type Found = FoundText | FoundAttribute;
 
 // Elements whose text never renders: it cannot be highlighted, and it would produce bogus usage.
 const NEVER_RENDERED = new Set(["head", "title", "meta", "script", "style", "noscript"]);
+
+const identities = new WeakMap<Node, number>();
+let nextIdentity = 1;
+
+/** A number for a node that stays the same for as long as the node exists. */
+function identityOf(node: Node): number {
+  let id = identities.get(node);
+  if (id === undefined) identities.set(node, (id = nextIdentity++));
+  return id;
+}
 
 // DOM constants, spelled out so the module needs no global NodeFilter.
 const SHOW_ELEMENT = 0x1;
@@ -49,7 +66,7 @@ function scanText(root: Document | Element): FoundText[] {
     const text = node as Text;
     const decoded = decode(text.data);
     if (decoded === undefined || text.parentElement === null) continue;
-    found.push({ kind: "text", element: text.parentElement, node: text, key: decoded.key, value: strip(decoded.value) });
+    found.push({ kind: "text", id: `t${identityOf(text)}`, element: text.parentElement, node: text, key: decoded.key, value: strip(decoded.value) });
   }
   return found;
 }
@@ -93,7 +110,7 @@ function scanAttributes(root: Document | Element, names: readonly string[]): Fou
       if (raw === null || !detect(raw)) continue;
       const decoded = decode(raw);
       if (decoded === undefined || element.closest(NEVER_RENDERED_SELECTOR) !== null) continue;
-      found.push({ kind: "attribute", element, attribute, key: decoded.key, value: strip(decoded.value) });
+      found.push({ kind: "attribute", id: `a${identityOf(element)}:${attribute}`, element, attribute, key: decoded.key, value: strip(decoded.value) });
     }
   }
   return found;

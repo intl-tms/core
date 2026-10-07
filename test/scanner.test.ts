@@ -195,3 +195,36 @@ describe("scanner: attributes", () => {
     expect(scan(document, attrs).map((f) => f.value)).toEqual([""]);
   });
 });
+
+describe("scanner: stable identity", () => {
+  it("a finding keeps its identity across rescans while its node survives", () => {
+    document.body.innerHTML = `<p>${mark("a", "k1")}</p>`;
+    expect(scan(document)[0]?.id).toBe(scan(document)[0]?.id);
+  });
+
+  it("two different translations have different identities", () => {
+    document.body.innerHTML = `<p>${mark("a", "k1")}</p><p>${mark("b", "k2")}</p>`;
+    const [first, second] = scan(document);
+    expect(first?.id).not.toBe(second?.id);
+  });
+
+  it("two attributes of one element have different identities", () => {
+    document.body.innerHTML = `<a title="${mark("t", "k1")}" aria-label="${mark("l", "k2")}"></a>`;
+    const [first, second] = scan(document, { attributes: ["title", "aria-label"] });
+    expect(first?.id).not.toBe(second?.id);
+  });
+
+  it("an attribute finding's identity survives a change of its value", () => {
+    document.body.innerHTML = `<a id="a" title="${mark("t", "k1")}"></a>`;
+    const before = scan(document, { attributes: ["title"] })[0]?.id;
+    document.getElementById("a")!.setAttribute("title", mark("new", "k1"));
+    expect(scan(document, { attributes: ["title"] })[0]?.id).toBe(before);
+  });
+
+  it("a node replaced by an equivalent one is a new identity", () => {
+    document.body.innerHTML = `<p id="p">${mark("a", "k1")}</p>`;
+    const before = scan(document)[0]?.id;
+    document.getElementById("p")!.replaceWith(Object.assign(document.createElement("p"), { id: "p", textContent: mark("a", "k1") }));
+    expect(scan(document)[0]?.id).not.toBe(before);
+  });
+});

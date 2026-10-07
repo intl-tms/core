@@ -15,3 +15,5 @@ export type { PickerChoice } from "./picker.js";
 export { DEFAULT_TIME_LIMIT_MS, USAGE_COOLDOWN_MS, createClient } from "./client.js";
 export type { Client, ClientConfig, ClientOptions, Failure, LocaleWrite, ReadUsageResult, ReadValuesResult, RequestFn, UsageOutcome } from "./client.js";
 export { resolveLocale } from "./locale.js";
+export { createSession } from "./session.js";
+export type { HiddenItem, Session, SessionOptions, SessionSink } from "./session.js";
