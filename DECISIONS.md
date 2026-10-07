@@ -53,3 +53,21 @@ builder. Each says what was chosen and why.
 - **Tag guard result** is the English reason text, or `undefined` when the
   draft can be saved. Structured results (MSG-34) are deferred.
 - **Shared rule** is the fixed prefix `shared`, case-sensitive.
+
+## Configuration (M3)
+
+- **Entry point name:** `resolveConfig`. Errors are `ConfigError`, whose
+  message always reads `<found>. <why>. Fix: <fix>.`.
+- **First error wins.** Collecting every problem at once (VAL-26) is deferred.
+- **Capabilities in the resolved configuration** are `usage` (when any usage
+  endpoint exists) and `conflicts` (always). The request handler adds the
+  capabilities only it knows (`meta`).
+- **Colours are not defaulted in the served configuration.** Built-in colours
+  apply where the configuration is consumed, so the served object is exactly
+  what the Developer wrote plus derived endpoints.
+- **Open row.** With no Schema, or Fields not statically known, the row type is
+  `OpenRow` with `any` values (spelled through `JSON.parse`'s return type to
+  avoid a lint suppression). This is what lets an untyped adapter fit every
+  configuration.
+- **F23 (adapter versus handler type check)** needs the handler, so its
+  type-level test lives with the handler milestone.

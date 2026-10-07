@@ -6,6 +6,8 @@ describe("package entries", () => {
   it("Z1: the website entry's public names equal the pinned list", () => {
     expect(Object.keys(website).sort()).toEqual(
       [
+        "ConfigError",
+        "PROTOCOL_VERSION",
         "SHARED_NOTICE",
         "TOGGLE_COOKIE_NAME",
         "TOGGLE_ON_VALUE",
@@ -16,6 +18,8 @@ describe("package entries", () => {
         "isPlain",
         "isSharedKey",
         "markCatalog",
+        "resolveConfig",
+        "resolveEndpoint",
         "strip",
         "tagMismatch",
         "tagNames",
