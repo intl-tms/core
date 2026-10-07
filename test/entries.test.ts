@@ -11,23 +11,31 @@ describe("package entries", () => {
         "SHARED_NOTICE",
         "TOGGLE_COOKIE_NAME",
         "TOGGLE_ON_VALUE",
+        "createMemoryAdapter",
         "decode",
         "detect",
+        "detectAdapterCapabilities",
         "encode",
+        "fieldText",
         "hasTags",
+        "isEmptyPatch",
         "isPlain",
         "isSharedKey",
         "markCatalog",
+        "normalizeUrl",
         "resolveConfig",
         "resolveEndpoint",
+        "runAdapterConformance",
         "strip",
         "tagMismatch",
         "tagNames",
+        "usageSignature",
+        "writePatch",
       ].sort(),
     );
   });
 
   it("Z2: the editing-tool entry's public names equal the pinned list", () => {
-    expect(Object.keys(tools).sort()).toEqual(["SHARED_NOTICE", "isSharedKey"]);
+    expect(Object.keys(tools).sort()).toEqual(["SHARED_NOTICE", "aggregateUsage", "isHttpUrl", "isSharedKey"]);
   });
 });

@@ -32,3 +32,31 @@ export type {
   WritableRowOf,
 } from "./config.js";
 export { resolveEndpoint } from "./endpoints.js";
+export { fieldText, isEmptyPatch, writePatch } from "./wire.js";
+export type {
+  ExpectedValues,
+  FailureClass,
+  FieldsOfWrite,
+  IsUntyped,
+  KeyMeta,
+  KeyReference,
+  LocaleSaveResult,
+  PageEffect,
+  PatchSource,
+  RuntimeUsage,
+  SaveOutcome,
+  SaveResult,
+  StaticUsage,
+  Usage,
+  UsageEntry,
+  UsageReport,
+  ValuesEnvelope,
+  WireRow,
+  Write,
+  WriteRequest,
+} from "./wire.js";
+export { normalizeUrl, usageSignature } from "./usage.js";
+export { createMemoryAdapter, detectAdapterCapabilities } from "./storage.js";
+export type { AdapterLocale, AdapterRow, MaybePromise, MemoryAdapterOptions, StorageAdapter } from "./storage.js";
+export { runAdapterConformance } from "./conformance.js";
+export type { ConformanceOptions, ConformanceReport, ConformanceResult } from "./conformance.js";

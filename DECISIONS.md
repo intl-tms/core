@@ -71,3 +71,29 @@ builder. Each says what was chosen and why.
   configuration.
 - **F23 (adapter versus handler type check)** needs the handler, so its
   type-level test lives with the handler milestone.
+
+## Wire shapes, storage seam and adapter (M4)
+
+- **Seam members are properties, not methods**, so their parameters are
+  compared contravariantly. That is what makes an adapter typed for another
+  configuration a compile error rather than silently accepted.
+- **Untyped adapter.** `StorageAdapter` with no type argument uses string
+  Locales and `OpenRow` (with `any` values), so it fits every configuration.
+- **Write patch** reads any write-shaped object and keeps only string columns,
+  defining them as own properties so a Field named like an object prototype
+  member stays an ordinary column.
+- **In-memory adapter** orders usages by `lastSeen` and breaks ties by arrival
+  order, so two reports in one millisecond still order the later first. A
+  report without a title keeps the title already stored for that page. Rows are
+  cloned on the way out so a caller cannot mutate the store.
+- **Usage URLs are stored exactly as reported.** The client does not
+  normalise; `normalizeUrl` is a public helper for a server that wants to
+  collapse tracking noise.
+- **Conformance suite** returns a report (`failures` empty means pass) and
+  depends on no test runner. Ordering of usages needs time to pass: give it
+  `advanceTime` to move an injected clock; otherwise it waits 5 real
+  milliseconds.
+- **Capability detection scaffolding** looks for five optional member names
+  (`saveValueIf`, `saveValues`, `getValuesMany`, `deleteValue`,
+  `reportStaticUsage`) and maps them to capabilities. None is implemented by
+  the Core yet.

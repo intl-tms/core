@@ -5,3 +5,4 @@
  * server code.
  */
 export { SHARED_NOTICE, isSharedKey } from "./classification.js";
+export { aggregateUsage, isHttpUrl } from "./usage.js";
