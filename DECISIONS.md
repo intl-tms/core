@@ -36,3 +36,20 @@ builder. Each says what was chosen and why.
 - **Real-browser rendering** of the alphabet (shaping, line breaking) cannot be
   proven in a simulated DOM; those rows of the matrix carry a recorded reason.
   A real-browser run is deferred (TST-10).
+
+## Catalog marking and classification (M2)
+
+- **Key separator:** a segment containing the separator or a backslash is
+  escaped with a backslash, so the flat key `a.b` marks as `a\.b` and the
+  nested path `a` → `b` marks as `a.b`. `markCatalog` takes an optional
+  `separator`; a Developer whose store uses flat dotted keys can pick another
+  separator and keep their keys readable.
+- **Memoisation** is keyed by Catalog identity and then by separator string, so
+  an inline options object cannot defeat it. A Catalog handed to `markCatalog`
+  is treated as immutable afterwards.
+- **Only plain objects are walked.** Class instances, dates, maps and cycles are
+  carried through untouched rather than flattened or looped on.
+- **Toggle cookie name** is `tms-edit`, value `1`.
+- **Tag guard result** is the English reason text, or `undefined` when the
+  draft can be saved. Structured results (MSG-34) are deferred.
+- **Shared rule** is the fixed prefix `shared`, case-sensitive.

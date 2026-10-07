@@ -4,10 +4,26 @@ import * as tools from "../src/tools.js";
 
 describe("package entries", () => {
   it("Z1: the website entry's public names equal the pinned list", () => {
-    expect(Object.keys(website).sort()).toEqual(["decode", "detect", "encode", "strip"]);
+    expect(Object.keys(website).sort()).toEqual(
+      [
+        "SHARED_NOTICE",
+        "TOGGLE_COOKIE_NAME",
+        "TOGGLE_ON_VALUE",
+        "decode",
+        "detect",
+        "encode",
+        "hasTags",
+        "isPlain",
+        "isSharedKey",
+        "markCatalog",
+        "strip",
+        "tagMismatch",
+        "tagNames",
+      ].sort(),
+    );
   });
 
   it("Z2: the editing-tool entry's public names equal the pinned list", () => {
-    expect(Object.keys(tools).sort()).toEqual([]);
+    expect(Object.keys(tools).sort()).toEqual(["SHARED_NOTICE", "isSharedKey"]);
   });
 });

@@ -4,4 +4,4 @@
  * that consume it; pin an exact version when building on it. It contains no
  * server code.
  */
-export {};
+export { SHARED_NOTICE, isSharedKey } from "./classification.js";
