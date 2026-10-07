@@ -14,9 +14,46 @@ export type AdapterLocale<C> = IsUntyped<C> extends true ? string : LocaleOf<C>;
 /** The rows an adapter stores, typed by the configuration. */
 export type AdapterRow<C> = IsUntyped<C> extends true ? OpenRow : RowOf<C>;
 
+/** One Locale's write as an untyped adapter receives it. */
+export interface UntypedWrite {
+  locale: string;
+  value?: string;
+  fields?: Record<string, string>;
+}
+
+/**
+ * An adapter typed for no particular configuration. It fits a handler built
+ * for any configuration.
+ */
+export interface UntypedStorageAdapter {
+  getValues: (key: string) => MaybePromise<Partial<Record<string, OpenRow>>>;
+  saveValue: (key: string, write: UntypedWrite) => MaybePromise<void>;
+  getUsage: (key: string) => MaybePromise<Usage[]>;
+  reportUsage: (report: UsageReport) => MaybePromise<void>;
+}
+
+/** An adapter typed for one configuration. */
+export interface TypedStorageAdapter<C> {
+  getValues: (key: string) => MaybePromise<Partial<Record<AdapterLocale<C>, AdapterRow<C>>>>;
+  saveValue: (key: string, write: Write<C>) => MaybePromise<void>;
+  getUsage: (key: string) => MaybePromise<Usage[]>;
+  reportUsage: (report: UsageReport) => MaybePromise<void>;
+}
+
 /**
  * Where rows live. Four operations are the whole required surface, and each
- * can be implemented against any database.
+ * can be implemented against any database:
+ *
+ * - `getValues(key)`: every stored Locale for one key. Sparse: a Locale with no
+ *   row is absent. Empty when nothing is stored.
+ * - `saveValue(key, write)`: upserts one (key, Locale) as a partial merge of
+ *   the supplied columns. A new row starts with an empty `value`. Use
+ *   `writePatch` to see which columns a write touches; an empty patch means do
+ *   nothing.
+ * - `getUsage(key)`: a key's usages, most recently seen first. Empty when
+ *   there are none.
+ * - `reportUsage(report)`: upserts each (key, URL) in a report, overwriting
+ *   count and last-seen. Never prunes.
  *
  * An adapter never answers HTTP and never validates input: it is handed only
  * validated, rebuilt data. Typed for a configuration, it is a compile error to
@@ -27,20 +64,7 @@ export type AdapterRow<C> = IsUntyped<C> extends true ? OpenRow : RowOf<C>;
  * method parameters are compared bivariantly, which would let a mismatched
  * adapter through.
  */
-export interface StorageAdapter<C = unknown> {
-  /** Every stored Locale for one key. Sparse: a Locale with no row is absent. Empty when nothing is stored. */
-  getValues: (key: string) => MaybePromise<Partial<Record<AdapterLocale<C>, AdapterRow<C>>>>;
-  /**
-   * Upserts one (key, Locale) as a partial merge of the supplied columns. A new
-   * row starts with an empty `value`. Use `writePatch` to see which columns a
-   * write touches; an empty patch means do nothing.
-   */
-  saveValue: (key: string, write: Write<C>) => MaybePromise<void>;
-  /** A key's usages, most recently seen first. Empty when there are none. */
-  getUsage: (key: string) => MaybePromise<Usage[]>;
-  /** Upserts each (key, URL) in a report, overwriting count and last-seen. Never prunes. */
-  reportUsage: (report: UsageReport) => MaybePromise<void>;
-}
+export type StorageAdapter<C = unknown> = IsUntyped<C> extends true ? UntypedStorageAdapter : TypedStorageAdapter<C>;
 
 /** Options for {@link createMemoryAdapter}. */
 export interface MemoryAdapterOptions {

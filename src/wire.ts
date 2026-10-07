@@ -187,3 +187,35 @@ export function isEmptyPatch(patch: Record<string, string>): boolean {
   for (const _ in patch) return false;
   return true;
 }
+
+/**
+ * The columns of a write that conflict with the stored row: those the sender
+ * expected to hold one thing and the store holds another.
+ *
+ * For each column named in `expected` (written or not, because a client may
+ * make a write to one column conditional on another), the stored value in text
+ * form must equal the expected value, or already equal what the write carries
+ * for that column. A stored value that already is what the write carries is
+ * not a conflict: two Editors who made the same change are not told they
+ * disagree. A column the write does not carry never equals the stored value.
+ *
+ * The caller decides what "no stored row" means (it means no conflict); this
+ * function is only asked when there is a row.
+ */
+export function conflictingColumns(
+  current: Record<string, unknown>,
+  expected: ExpectedValues,
+  write: { value?: string | undefined; fields?: object | undefined },
+): string[] {
+  const written = write.fields as Record<string, unknown> | undefined;
+  const conflicts: string[] = [];
+  if (expected.value !== undefined) {
+    const stored = fieldText(current.value);
+    if (stored !== expected.value && stored !== write.value) conflicts.push("value");
+  }
+  for (const name of Object.keys(expected.fields ?? {})) {
+    const stored = fieldText(Object.hasOwn(current, name) ? current[name] : undefined);
+    if (stored !== expected.fields![name] && stored !== written?.[name]) conflicts.push(name);
+  }
+  return conflicts;
+}

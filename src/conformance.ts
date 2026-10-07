@@ -1,4 +1,15 @@
-import type { StorageAdapter } from "./storage.js";
+import type { UntypedStorageAdapter } from "./storage.js";
+
+/**
+ * Any adapter, typed or not. Declared with method syntax and `never`
+ * parameters so an adapter typed for one configuration is accepted too.
+ */
+export interface ConformanceTarget {
+  getValues(key: string): unknown;
+  saveValue(key: string, write: never): unknown;
+  getUsage(key: string): unknown;
+  reportUsage(report: never): unknown;
+}
 
 /** The outcome of one conformance check. */
 export interface ConformanceResult {
@@ -49,7 +60,8 @@ const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 
  * Every check uses keys of its own, so it is safe to run against a shared
  * database, but it does write to it.
  */
-export async function runAdapterConformance(adapter: StorageAdapter, options: ConformanceOptions = {}): Promise<ConformanceReport> {
+export async function runAdapterConformance(target: ConformanceTarget, options: ConformanceOptions = {}): Promise<ConformanceReport> {
+  const adapter = target as UntypedStorageAdapter;
   const locale = options.locale ?? "en";
   const field = options.fieldName;
   const advance = options.advanceTime ?? pause;

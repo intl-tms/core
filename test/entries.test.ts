@@ -11,6 +11,8 @@ describe("package entries", () => {
         "SHARED_NOTICE",
         "TOGGLE_COOKIE_NAME",
         "TOGGLE_ON_VALUE",
+        "conflictingColumns",
+        "createHandler",
         "createMemoryAdapter",
         "decode",
         "detect",

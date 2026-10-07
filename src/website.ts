@@ -32,7 +32,7 @@ export type {
   WritableRowOf,
 } from "./config.js";
 export { resolveEndpoint } from "./endpoints.js";
-export { fieldText, isEmptyPatch, writePatch } from "./wire.js";
+export { conflictingColumns, fieldText, isEmptyPatch, writePatch } from "./wire.js";
 export type {
   ExpectedValues,
   FailureClass,
@@ -60,3 +60,7 @@ export { createMemoryAdapter, detectAdapterCapabilities } from "./storage.js";
 export type { AdapterLocale, AdapterRow, MaybePromise, MemoryAdapterOptions, StorageAdapter } from "./storage.js";
 export { runAdapterConformance } from "./conformance.js";
 export type { ConformanceOptions, ConformanceReport, ConformanceResult } from "./conformance.js";
+export { createHandler } from "./handler.js";
+export type { AnyConfig, Authorize, AuthorizeContext, CorsPolicy, ErrorCode, Handler, HandlerOptions, Operation } from "./handler.js";
+export type { ConformanceTarget } from "./conformance.js";
+export type { TypedStorageAdapter, UntypedStorageAdapter, UntypedWrite } from "./storage.js";

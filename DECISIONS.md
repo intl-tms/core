@@ -97,3 +97,34 @@ builder. Each says what was chosen and why.
   (`saveValueIf`, `saveValues`, `getValuesMany`, `deleteValue`,
   `reportStaticUsage`) and maps them to capabilities. None is implemented by
   the Core yet.
+
+## Request handler (M5)
+
+- **Authorization signature:** `authorize({ request, operation })`, a single
+  object so route, key, Locale and identity can be added later without
+  breaking callers. Anything other than `true` denies, so a check that forgets
+  to return a value fails closed. The check must not read the request body.
+- **Error hook signature:** `onError(error, request)`; defaults to
+  `console.error`. A hook that throws is contained.
+- **Error body:** `{ error, code }`. Codes: `malformed-path`, `invalid-json`,
+  `invalid-request`, `nothing-to-update`, `unauthorized`, `not-found`,
+  `method-not-allowed`, `conflict`, `internal-error`. The 500 body is fixed.
+- **Validation order within a field list** is per field: a field is checked
+  for being declared, then Read-only, then string, then option, before the
+  next field is looked at.
+- **A write whose `fields` is empty** and carries no value is "nothing to
+  update". `fields` is only present on the write handed to storage when it
+  holds at least one column.
+- **Usage routes exist only when the usage endpoints are configured**; without
+  them they are 404 rather than a disabled feature that answers.
+- **Capabilities served** are the resolved ones plus `meta` when a metadata
+  hook is installed.
+- **CORS:** `cors: { origins, credentials? }`. A wildcard is refused at build
+  with a `ConfigError`. `Vary: Origin` is added to every response only when a
+  policy is configured, and a preflight is answered only for a listed origin on
+  a matched route.
+- **Storage is handed an untyped view.** Everything the handler passes on is
+  validated and rebuilt, so the cast to the untyped adapter is true at run
+  time; the typing exists to catch wiring mistakes at compile time.
+- **Metadata and storage are fetched concurrently** (a ▲ item, adopted because
+  it is a single `Promise.all`).
