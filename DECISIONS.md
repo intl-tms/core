@@ -128,3 +128,35 @@ builder. Each says what was chosen and why.
   time; the typing exists to catch wiring mistakes at compile time.
 - **Metadata and storage are fetched concurrently** (a ▲ item, adopted because
   it is a single `Promise.all`).
+
+## Scanner, highlighter and picker (M6)
+
+- **Marker attributes** default to `data-tms-hl` (highlighted),
+  `data-tms-hl-attr` (attribute-only), `data-tms-hl-active` (active) and a
+  fourth, `data-tms-hl-flash`, because a flash needs its own state that must
+  not disturb the active one. All four are configurable.
+- **Highlighting is a stylesheet**, one `<style data-tms-hl-style>` element in
+  the head, with the colours inside its rules. A colour change rewrites that
+  one element. No inline style is ever written, and clear removes the element.
+  Strict content-security-policy support (a nonce, or constructable
+  stylesheets) is deferred.
+- **Colours are sanitised** before they enter the stylesheet: only hex,
+  functional notation and keywords pass, anything else falls back to the
+  default, so a served configuration cannot inject CSS.
+- **Attribute selectors:** names are validated, de-duplicated, and a colon is
+  escaped. A namespaced attribute (SVG `xlink:href`) is matched by its local
+  name in any namespace and then verified by its qualified name, because a CSS
+  attribute selector never matches a namespaced attribute by qualified name.
+- **Order within one element:** an element's attribute translations precede its
+  own text.
+- **Self-mutation:** the observer filters on the scanned attribute names (so
+  marker attributes are invisible to it), ignores changes inside its own
+  stylesheet, and `silently(write)` drains the queue around a write.
+  Mutations that happened before the write still schedule a rescan.
+- **Picker `closePicker`** leaves the promise unsettled (the spec's "without
+  resolving"); user dismissal resolves with `undefined`. The menu opens exactly
+  at the click position unless that would leave the viewport.
+- **Picker rows** carry `role="menuitem"` and no keyboard navigation yet
+  (accessibility and style isolation are deferred).
+- **Timers** are injectable on the highlighter; by default they look up the
+  platform's `setTimeout` at each use so fake timers installed later apply.

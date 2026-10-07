@@ -38,6 +38,20 @@ describe("package entries", () => {
   });
 
   it("Z2: the editing-tool entry's public names equal the pinned list", () => {
-    expect(Object.keys(tools).sort()).toEqual(["SHARED_NOTICE", "aggregateUsage", "isHttpUrl", "isSharedKey"]);
+    expect(Object.keys(tools).sort()).toEqual(
+      [
+        "DEFAULT_COLORS",
+        "DEFAULT_SCAN_ATTRIBUTES",
+        "SHARED_NOTICE",
+        "aggregateUsage",
+        "closePicker",
+        "createHighlighter",
+        "highlightSettings",
+        "isHttpUrl",
+        "isSharedKey",
+        "openPicker",
+        "scan",
+      ].sort(),
+    );
   });
 });
