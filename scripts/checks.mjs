@@ -1,10 +1,15 @@
 // Repository checks shared by the lint script and the test suite.
 
 const IMPORT_PATTERNS = [
-  /\bfrom\s+["']([^"']+)["']/g,
+  /^\s*(?:import|export)\b[^;"']*?\bfrom\s+["']([^"']+)["']/gm,
   /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
-  /\bimport\s+["']([^"']+)["']/g,
+  /^\s*import\s+["']([^"']+)["']/gm,
 ];
+
+/** Replaces comments with spaces so their text can never look like code. */
+function withoutComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (comment) => comment.replace(/[^\n]/g, " "));
+}
 
 /**
  * Every module specifier in `source` that is not a relative path. The package
@@ -15,8 +20,9 @@ const IMPORT_PATTERNS = [
  */
 export function findPlatformImports(source) {
   const found = [];
+  const code = withoutComments(source);
   for (const pattern of IMPORT_PATTERNS) {
-    for (const match of source.matchAll(pattern)) {
+    for (const match of code.matchAll(pattern)) {
       const specifier = match[1];
       if (specifier !== undefined && !specifier.startsWith(".")) found.push(specifier);
     }

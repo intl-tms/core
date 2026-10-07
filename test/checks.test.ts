@@ -18,6 +18,18 @@ describe("platform import check", () => {
     expect(findPlatformImports(`const f = await import("fs");`)).toEqual(["fs"]);
   });
 
+  it("ignores the word from followed by a quoted phrase inside a comment", () => {
+    expect(findPlatformImports(`/** tell "never translated" from "translated to an empty string". */`)).toEqual([]);
+  });
+
+  it("ignores an import-looking line inside a line comment", () => {
+    expect(findPlatformImports(`// import x from "lodash";`)).toEqual([]);
+  });
+
+  it("flags a multi-line import from a bare module", () => {
+    expect(findPlatformImports(`import {\n  a,\n  b,\n} from "lodash";`)).toEqual(["lodash"]);
+  });
+
   it("flags a re-export from a bare module", () => {
     expect(findPlatformImports(`export * from "path";`)).toEqual(["path"]);
   });
