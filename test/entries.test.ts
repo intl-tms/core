@@ -42,14 +42,18 @@ describe("package entries", () => {
       [
         "DEFAULT_COLORS",
         "DEFAULT_SCAN_ATTRIBUTES",
+        "DEFAULT_TIME_LIMIT_MS",
         "SHARED_NOTICE",
+        "USAGE_COOLDOWN_MS",
         "aggregateUsage",
         "closePicker",
+        "createClient",
         "createHighlighter",
         "highlightSettings",
         "isHttpUrl",
         "isSharedKey",
         "openPicker",
+        "resolveLocale",
         "scan",
       ].sort(),
     );

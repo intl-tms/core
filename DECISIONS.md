@@ -160,3 +160,31 @@ builder. Each says what was chosen and why.
   (accessibility and style isolation are deferred).
 - **Timers** are injectable on the highlighter; by default they look up the
   platform's `setTimeout` at each use so fake timers installed later apply.
+
+## Client (M7)
+
+- **`readValues` result:** `{ values, error, failure? }`. `values` is always an
+  envelope (empty on failure). `failure` is `{ class, reason?, status? }`, so a
+  tool branches on `class` and shows `reason`.
+- **Failure classes:** `config-not-loaded`, `offline`, `timeout`, `network`,
+  `unauthenticated`, `forbidden`, `invalid`, `conflict`, `not-found`, `server`,
+  `unknown`. A cross-origin block cannot be told apart from an unreachable
+  server in a browser (both are a `TypeError`), so both are `network`; only
+  `navigator.onLine === false` is reported as `offline`.
+- **Time limit** races the whole round trip, headers and body, against one
+  timer, aborts the request and ignores a late answer. A request function that
+  ignores the abort signal still cannot hang the caller. Timers are looked up
+  on `globalThis` at each use unless injected.
+- **Saves are sequential**, in the caller's order, so results and status tokens
+  come back in save order. Concurrency (and the batch endpoint) are deferred.
+- **A conflict's `current`** is accepted only when it is an object with a
+  string `value`.
+- **Usage reporting** remembers one accepted signature (not a bounded set).
+  The URL is signed and sent exactly as the caller gives it; the client does
+  not normalise it. A reset bumps an epoch so a late answer from before the
+  reset cannot repopulate the state.
+- **With no configuration** a usage read is "not configured" rather than an
+  error (the configuration arriving late is a normal state), whereas a values
+  read or a save with no configuration fails.
+- **`resolveLocale`** returns the configured spelling, or the input unchanged;
+  it does not report whether it matched.

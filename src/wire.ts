@@ -105,7 +105,7 @@ export interface StaticUsage {
 export type Usage = RuntimeUsage | StaticUsage;
 
 /** How a request failed, for tools that branch on the class instead of the text. */
-export type FailureClass = "offline" | "timeout" | "network" | "unauthenticated" | "forbidden" | "invalid" | "conflict" | "not-found" | "server" | "unknown";
+export type FailureClass = "config-not-loaded" | "offline" | "timeout" | "network" | "unauthenticated" | "forbidden" | "invalid" | "conflict" | "not-found" | "server" | "unknown";
 
 /** The outcome of saving one Locale. */
 export interface LocaleSaveResult {

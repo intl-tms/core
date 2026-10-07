@@ -12,3 +12,6 @@ export { DEFAULT_COLORS, DEFAULT_SCAN_ATTRIBUTES, createHighlighter, highlightSe
 export type { Highlighter, HighlighterConfig, HighlighterOptions, HighlightSettings, MarkerAttributes } from "./highlighter.js";
 export { closePicker, openPicker } from "./picker.js";
 export type { PickerChoice } from "./picker.js";
+export { DEFAULT_TIME_LIMIT_MS, USAGE_COOLDOWN_MS, createClient } from "./client.js";
+export type { Client, ClientConfig, ClientOptions, Failure, LocaleWrite, ReadUsageResult, ReadValuesResult, RequestFn, UsageOutcome } from "./client.js";
+export { resolveLocale } from "./locale.js";
