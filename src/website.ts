@@ -4,4 +4,5 @@
  * classification. This entry carries the package's stability promise and
  * contains no DOM code.
  */
-export {};
+export { decode, detect, encode, strip } from "./codec.js";
+export type { Decoded } from "./codec.js";
