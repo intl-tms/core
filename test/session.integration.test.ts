@@ -16,7 +16,7 @@ const config = resolveConfig({
 });
 
 const byId = (id: string) => document.getElementById(id)!;
-const click = (target: Element) => target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+const click = (target: Element) => target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, altKey: true }));
 const until = async (condition: () => boolean) => {
   for (let i = 0; i < 50 && !condition(); i++) await new Promise((resolve) => setTimeout(resolve, 0));
 };

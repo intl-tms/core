@@ -55,7 +55,7 @@ describe("end to end: a page, a session, a panel, a client, a handler and a stor
     session = createSession({ sink: panel, client, getConfig: () => config, getLocale: () => "da" });
     session.start(document);
 
-    document.getElementById("title")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    document.getElementById("title")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, altKey: true }));
     expect(panel.getState().selection).toMatchObject({ key: "home.title", locale: "da" });
     expect(panel.getState().draft.da?.value).toBe("Velkommen");
 
@@ -82,7 +82,7 @@ describe("end to end: a page, a session, a panel, a client, a handler and a stor
     panel.setConfig({ locales: config.locales, schema: config.schema });
     session = createSession({ sink: panel, client, getConfig: () => config, getLocale: () => "da" });
     session.start(document);
-    const click = () => document.getElementById("title")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    const click = () => document.getElementById("title")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, altKey: true }));
 
     click();
     panel.editValue("da", "Hej");

@@ -1,6 +1,10 @@
 // Owns everything the editing flow does to the page's DOM: outlines, click
 // handling and following mutations.
 //
+// The page stays the page's: a plain click does what it always did. Holding
+// the edit modifier (Alt, Option on a Mac) turns a click on an outline into
+// an edit, and keeps that whole gesture from the page.
+//
 // Highlighting is done with one injected stylesheet keyed on marker attributes,
 // never with inline styles. That cannot overwrite a style the page set itself,
 // can be removed perfectly, and works under a strict content security policy.
@@ -52,6 +56,8 @@ export interface MarkerAttributes {
   active: string;
   /** On an element while it is flashed. */
   flash: string;
+  /** On the document's root element while the edit modifier is held. */
+  armed: string;
 }
 
 const DEFAULT_MARKER_ATTRIBUTES: MarkerAttributes = {
@@ -59,13 +65,25 @@ const DEFAULT_MARKER_ATTRIBUTES: MarkerAttributes = {
   attributeOnly: "data-tms-hl-attr",
   active: "data-tms-hl-active",
   flash: "data-tms-hl-flash",
+  armed: "data-tms-hl-armed",
 };
+
+/**
+ * Every event of a press that a page may act on. A menu or a native select
+ * opens on the press, long before the click.
+ */
+const GESTURE_EVENTS = ["pointerdown", "mousedown", "pointerup", "mouseup", "click", "dblclick", "auxclick"] as const;
+/** What tells the highlighter whether the edit modifier is held. */
+const MODIFIER_EVENTS = ["keydown", "keyup", "pointermove"] as const;
 
 /** What {@link createHighlighter} is built from. */
 export interface HighlighterOptions {
   /** Read freshly at every scan: the served configuration arrives later than the highlighter is built. */
   getConfig?: () => HighlighterConfig | undefined;
-  /** Receives every translation the clicked element carries, with the click event. */
+  /**
+   * Receives every translation the clicked element carries, with the click
+   * event. Called only for a click made with the edit modifier held.
+   */
   onClick: (translations: readonly Found[], event: MouseEvent) => void;
   /** Receives what every completed scan found, including scans triggered by page mutations. */
   onScan?: (found: readonly Found[]) => void;
@@ -125,7 +143,7 @@ export function createHighlighter(options: HighlighterOptions): Highlighter {
   const flashing = new Map<Element, unknown>();
   let debounceTimer: unknown;
   let ceilingTimer: unknown;
-  let listening: { root: Document | Element; handler: (event: Event) => void } | undefined;
+  let listening: { root: Document | Element; stop: () => void } | undefined;
 
   const sameTranslation = (a: Found, b: Found): boolean =>
     a.element === b.element && a.kind === b.kind && a.key === b.key && (a.kind === "text" ? b.kind === "text" && a.node === b.node : b.kind === "attribute" && a.attribute === b.attribute);
@@ -138,26 +156,64 @@ export function createHighlighter(options: HighlighterOptions): Highlighter {
   };
 
   /**
-   * One delegated listener on the root handles every click, so adding and
+   * What an edit click on `element` means. A drop-down's options are drawn by
+   * the browser outside the page and can never be clicked, so the select
+   * answers for them as well as for itself.
+   */
+  const translationsAt = (element: Element): readonly Found[] | undefined => {
+    const carrier = element.closest(`[${names.highlight}]`);
+    const select = element.closest("select");
+    if (select === null || (carrier !== null && carrier !== select)) return carrier === null ? undefined : highlighted.get(carrier);
+    const all = [select, ...select.querySelectorAll(`[${names.highlight}]`)].flatMap((each) => highlighted.get(each) ?? []);
+    return all.length === 0 ? undefined : all;
+  };
+
+  /**
+   * Delegated listeners on the window handle every edit click, so adding and
    * removing highlighted elements costs nothing and rescans can never stack
-   * handlers. It runs in the capture phase so the page's own handler for a
-   * translated link or button never fires: clicking edits it instead.
+   * handlers. They capture at the window, ahead of anything the page put on
+   * the document or below, and stop the event where it stands.
+   *
+   * The press is never prevented at `pointerdown`: that would suppress the
+   * `mousedown` whose default (taking focus, opening a select) is the one
+   * that has to be prevented.
    */
   const listen = (root: Document | Element): void => {
     if (listening?.root === root) return;
     stopListening();
-    const handler = (event: Event): void => {
+    const document = root.nodeType === 9 ? (root as Document) : (root.ownerDocument as Document);
+    const view: EventTarget = document.defaultView ?? document;
+    const arm = (held: boolean): void => {
+      if (held) document.documentElement.setAttribute(names.armed, "");
+      else document.documentElement.removeAttribute(names.armed);
+    };
+    const onGesture = (event: Event): void => {
+      const press = event as MouseEvent;
+      if (!press.altKey) return;
       const target = event.target as Node | null;
       const element = target?.nodeType === 1 ? (target as Element) : target?.parentElement;
-      const carrier = element?.closest(`[${names.highlight}]`);
-      const translations = carrier === null || carrier === undefined ? undefined : highlighted.get(carrier);
+      const translations = element === null || element === undefined || !root.contains(element) ? undefined : translationsAt(element);
       if (translations === undefined) return;
-      event.preventDefault();
-      event.stopPropagation();
-      options.onClick(translations, event as MouseEvent);
+      if (!event.type.startsWith("pointer")) event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.type === "click") options.onClick(translations, press);
     };
-    root.addEventListener("click", handler, true);
-    listening = { root, handler };
+    // The key may be pressed while another window (the panel) has focus, so the pointer is asked as well.
+    const onModifier = (event: Event): void => arm((event as KeyboardEvent | MouseEvent).altKey);
+    // The release will never be heard.
+    const onBlur = (): void => arm(false);
+    for (const type of GESTURE_EVENTS) view.addEventListener(type, onGesture, true);
+    for (const type of MODIFIER_EVENTS) view.addEventListener(type, onModifier, true);
+    view.addEventListener("blur", onBlur);
+    listening = {
+      root,
+      stop: () => {
+        for (const type of GESTURE_EVENTS) view.removeEventListener(type, onGesture, true);
+        for (const type of MODIFIER_EVENTS) view.removeEventListener(type, onModifier, true);
+        view.removeEventListener("blur", onBlur);
+        arm(false);
+      },
+    };
   };
 
   const timers = options.timers ?? {
@@ -233,13 +289,14 @@ export function createHighlighter(options: HighlighterOptions): Highlighter {
   };
 
   const stopListening = (): void => {
-    listening?.root.removeEventListener("click", listening.handler, true);
+    listening?.stop();
     listening = undefined;
   };
 
   const stylesheet = (colors: HighlightSettings["colors"]): string =>
     [
-      `[${names.highlight}] { outline: 2px solid ${colors.highlight}; outline-offset: 2px; cursor: pointer; }`,
+      `[${names.highlight}] { outline: 2px solid ${colors.highlight}; outline-offset: 2px; }`,
+      `[${names.armed}] [${names.highlight}] { outline-width: 3px; cursor: pointer; }`,
       `[${names.attributeOnly}] { outline-style: dashed; }`,
       `[${names.active}] { outline-color: ${colors.active}; }`,
       `[${names.flash}] { outline: 3px solid ${colors.active}; outline-offset: 2px; }`,

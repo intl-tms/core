@@ -101,6 +101,8 @@ export function createSession(options: SessionOptions): Session {
   };
 
   const onClick = (translations: readonly Found[], event: MouseEvent): void => {
+    // The edit gesture is kept from the page, the picker's own dismissal included.
+    closePicker();
     if (translations.length === 1) return open(translations[0]!);
     const choices = translations.map((found) => ({ label: found.kind === "text" ? "text" : found.attribute, preview: currentValue(found), value: found }));
     void openPicker(choices, { x: event.clientX, y: event.clientY }).then((chosen) => chosen !== undefined && open(chosen));

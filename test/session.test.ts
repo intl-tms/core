@@ -6,7 +6,7 @@ import { deferred, fakes, ok } from "./support/session-fakes.js";
 
 const mark = (value: string, key: string) => encode(value, key);
 const byId = (id: string) => document.getElementById(id)!;
-const click = (target: Element, init: MouseEventInit = {}) => target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ...init }));
+const click = (target: Element, init: MouseEventInit = {}) => target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, altKey: true, ...init }));
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 let session: Session | undefined;
@@ -214,6 +214,32 @@ describe("session: elements with several translations", () => {
     click(byId("a"), { clientX: 30, clientY: 50 });
     const style = (document.querySelector("[data-tms-picker]") as HTMLElement).style;
     expect([style.left, style.top]).toEqual(["30px", "50px"]);
+  });
+});
+
+describe("session: the page stays usable", () => {
+  it("a plain click on a translation opens nothing", () => {
+    document.body.innerHTML = `<p id="p">${mark("Hi", "k")}</p>`;
+    const parts = fakes();
+    build(parts).start(document);
+    click(byId("p"), { altKey: false });
+    expect(parts.sink.open).not.toHaveBeenCalled();
+  });
+
+  it("an edit click on a drop-down offers its label and every option", () => {
+    document.body.innerHTML = `<select id="s" aria-label="${mark("Language", "k.label")}"><option>${mark("English", "k.en")}</option><option>${mark("Dansk", "k.da")}</option></select>`;
+    build(fakes()).start(document);
+    click(byId("s"));
+    const rows = [...document.querySelectorAll("[data-tms-picker-row]")].map((row) => row.textContent);
+    expect(rows).toEqual(["aria-labelLanguage", "textEnglish", "textDansk"]);
+  });
+
+  it("an edit click elsewhere closes an open picker: its own dismissal never hears the press", () => {
+    document.body.innerHTML = `<a id="a" title="${mark("Tip", "k.tip")}">${mark("Link", "k.text")}</a><p id="p">${mark("Hi", "k")}</p>`;
+    build(fakes()).start(document);
+    click(byId("a"));
+    click(byId("p"));
+    expect(document.querySelector("[data-tms-picker]")).toBeNull();
   });
 });
 

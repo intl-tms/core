@@ -153,6 +153,28 @@ builder. Each says what was chosen and why.
   marker attributes are invisible to it), ignores changes inside its own
   stylesheet, and `silently(write)` drains the queue around a write.
   Mutations that happened before the write still schedule a rescan.
+- **Editing takes a modifier; a plain click is the page's.** Only a click
+  with Alt held (Option on a Mac) opens a translation. This replaces HL-21
+  (intercept every click) and inverts HL-64 (the modifier passed through):
+  intercepting everything made every translated link, button and menu
+  unusable in edit mode, including the menu an Editor has to open to reach
+  its items. Not Control: on a Mac that is a secondary click and no `click`
+  is dispatched. The rule covers static text too, because a `<div>` with a
+  framework handler cannot be told from static text.
+- **The whole edit gesture is kept from the page**, not only the click:
+  `pointerdown`, `mousedown`, `pointerup`, `mouseup`, `click`, `dblclick` and
+  `auxclick`, captured at the window and stopped immediately. Menus and native
+  selects open on the press. `pointerdown` is stopped but not prevented, as
+  preventing it would suppress the `mousedown` whose default (focus, the
+  select's list) has to be prevented.
+- **A drop-down answers for its options.** The browser draws them outside the
+  page, so an edit click on a `<select>` hands over its own translations and
+  every option's, and the picker asks which. An option that is clicked itself
+  (a list box) opens alone.
+- **Armed state:** while the modifier is held the root element carries
+  `data-tms-hl-armed`, and outlines thicken and show a pointer. It follows
+  `pointermove` as well as the key events, because the key is often pressed
+  while the panel has focus, and it is dropped when the window loses focus.
 - **Picker `closePicker`** leaves the promise unsettled (the spec's "without
   resolving"); user dismissal resolves with `undefined`. The menu opens exactly
   at the click position unless that would leave the viewport.

@@ -7,7 +7,7 @@ tools that work on it.
 A website renders translated text. The Core makes every rendered string carry an
 invisible identifier of the translation key it came from. An editing tool running
 on the page (a browser extension, a component-workbench addon) decodes those
-identifiers, lets an Editor click any text, edit it in every Locale, and save it.
+identifiers, lets an Editor Alt-click any text, edit it in every Locale, and save it.
 The website stores the change through a storage adapter **you** write.
 
 - **Call sites never change.** Marking happens once, on the assembled message

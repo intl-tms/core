@@ -8,6 +8,7 @@ const HL = "data-tms-hl";
 const HL_ATTR = "data-tms-hl-attr";
 const HL_ACTIVE = "data-tms-hl-active";
 const HL_FLASH = "data-tms-hl-flash";
+const HL_ARMED = "data-tms-hl-armed";
 
 let highlighter: Highlighter | undefined;
 const make = (options: Partial<HighlighterOptions> = {}): Highlighter => (highlighter = createHighlighter({ onClick: () => undefined, ...options }));
@@ -38,10 +39,22 @@ describe("highlighter: highlighting", () => {
     expect(rule(`[${HL}]`)).toContain(`outline: 2px solid ${DEFAULT_COLORS.highlight}`);
   });
 
-  it("the highlighted rule offsets the outline by 2px and shows a pointer", () => {
+  it("the highlighted rule offsets the outline by 2px", () => {
     document.body.innerHTML = `<p>${mark("Hi", "k")}</p>`;
     make().scan(document);
-    expect([rule(`[${HL}]`).includes("outline-offset: 2px"), rule(`[${HL}]`).includes("cursor: pointer")]).toEqual([true, true]);
+    expect(rule(`[${HL}]`)).toContain("outline-offset: 2px");
+  });
+
+  it("a resting highlight does not change the cursor: a plain click is the page's", () => {
+    document.body.innerHTML = `<p>${mark("Hi", "k")}</p>`;
+    make().scan(document);
+    expect(rule(`[${HL}]`)).not.toContain("cursor");
+  });
+
+  it("while armed, a highlight shows a pointer and a thicker outline", () => {
+    document.body.innerHTML = `<p>${mark("Hi", "k")}</p>`;
+    make().scan(document);
+    expect([rule(`[${HL_ARMED}] [${HL}]`).includes("cursor: pointer"), rule(`[${HL_ARMED}] [${HL}]`).includes("outline-width: 3px")]).toEqual([true, true]);
   });
 
   it("an element with visible text does not carry the attribute-only marker", () => {
@@ -146,12 +159,13 @@ describe("highlighter: the stylesheet is valid CSS", () => {
   };
 
   it("a CSS parser reads every rule", () => {
-    expect(sheet().cssRules).toHaveLength(5);
+    expect(sheet().cssRules).toHaveLength(6);
   });
 
   it("the rules select on the marker attributes", () => {
     expect([...sheet().cssRules].map((r) => (r as CSSStyleRule).selectorText)).toEqual([
       `[${HL}]`,
+      `[${HL_ARMED}] [${HL}]`,
       `[${HL_ATTR}]`,
       `[${HL_ACTIVE}]`,
       `[${HL_FLASH}]`,
@@ -192,11 +206,15 @@ describe("highlight settings", () => {
   });
 });
 
-const click = (target: Element): MouseEvent => {
-  const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+const fire = (type: string, target: Element, init: MouseEventInit = {}): MouseEvent => {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, altKey: true, ...init });
   target.dispatchEvent(event);
   return event;
 };
+/** An edit click: the modifier is held. */
+const click = (target: Element): MouseEvent => fire("click", target);
+/** A click as the page's visitor makes it: no modifier. */
+const plainClick = (target: Element): MouseEvent => fire("click", target, { altKey: false });
 
 describe("highlighter: click routing", () => {
   it("L7: two scans then one click fires the callback once", () => {
@@ -209,18 +227,28 @@ describe("highlighter: click routing", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("L8: a click on a highlighted link has its default prevented", () => {
+  it("L8: an edit click on a highlighted link has its default prevented", () => {
     document.body.innerHTML = `<a id="a" href="/next">${mark("Go", "k")}</a>`;
     make().scan(document);
     expect(click(byId("a")).defaultPrevented).toBe(true);
   });
 
-  it("a click on a highlighted element does not propagate to the page's own handlers", () => {
+  it("an edit click on a highlighted element does not propagate to the page's own handlers", () => {
     document.body.innerHTML = `<button id="b">${mark("Buy", "k")}</button>`;
     const pageHandler = vi.fn();
     byId("b").addEventListener("click", pageHandler);
     make().scan(document);
     click(byId("b"));
+    expect(pageHandler).not.toHaveBeenCalled();
+  });
+
+  it("an edit click does not reach a capturing handler the page put on the document", () => {
+    document.body.innerHTML = `<button id="b">${mark("Buy", "k")}</button>`;
+    const pageHandler = vi.fn();
+    document.addEventListener("click", pageHandler, true);
+    make().scan(document);
+    click(byId("b"));
+    document.removeEventListener("click", pageHandler, true);
     expect(pageHandler).not.toHaveBeenCalled();
   });
 
@@ -272,7 +300,7 @@ describe("highlighter: click routing", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
-  it("adds one listener to the root, not one per element", () => {
+  it("adds no listener per element", () => {
     document.body.innerHTML = `<p>${mark("a", "k1")}</p><p>${mark("b", "k2")}</p><p>${mark("c", "k3")}</p>`;
     const add = vi.spyOn(Element.prototype, "addEventListener");
     make().scan(document);
@@ -286,6 +314,180 @@ describe("highlighter: click routing", () => {
     h.scan(document);
     h.clear();
     expect(click(byId("a")).defaultPrevented).toBe(false);
+  });
+});
+
+describe("highlighter: a plain click is the page's", () => {
+  it("a plain click on a highlighted link keeps its default", () => {
+    document.body.innerHTML = `<a id="a" href="#next">${mark("Go", "k")}</a>`;
+    make().scan(document);
+    expect(plainClick(byId("a")).defaultPrevented).toBe(false);
+  });
+
+  it("a plain click reaches the page's own handler", () => {
+    document.body.innerHTML = `<button id="b">${mark("Buy", "k")}</button>`;
+    const pageHandler = vi.fn();
+    byId("b").addEventListener("click", pageHandler);
+    make().scan(document);
+    plainClick(byId("b"));
+    expect(pageHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it("a plain click opens nothing", () => {
+    document.body.innerHTML = `<p id="p">${mark("Hi", "k")}</p>`;
+    const onClick = vi.fn();
+    make({ onClick }).scan(document);
+    plainClick(byId("p"));
+    expect(onClick).not.toHaveBeenCalled();
+  });
+});
+
+describe("highlighter: the whole edit gesture is kept from the page", () => {
+  const GESTURE = ["pointerdown", "mousedown", "pointerup", "mouseup", "click", "dblclick", "auxclick"];
+
+  it.each(GESTURE)("an edit %s does not reach the page's handler", (type) => {
+    document.body.innerHTML = `<button id="b">${mark("Menu", "k")}</button>`;
+    const pageHandler = vi.fn();
+    byId("b").addEventListener(type, pageHandler);
+    make().scan(document);
+    fire(type, byId("b"));
+    expect(pageHandler).not.toHaveBeenCalled();
+  });
+
+  it.each(GESTURE)("a plain %s does", (type) => {
+    document.body.innerHTML = `<button id="b">${mark("Menu", "k")}</button>`;
+    const pageHandler = vi.fn();
+    byId("b").addEventListener(type, pageHandler);
+    make().scan(document);
+    fire(type, byId("b"), { altKey: false });
+    expect(pageHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it("an edit mousedown is prevented, so the control neither takes focus nor opens", () => {
+    document.body.innerHTML = `<select id="s" aria-label="${mark("Language", "k")}"><option>en</option></select>`;
+    make().scan(document);
+    expect(fire("mousedown", byId("s")).defaultPrevented).toBe(true);
+  });
+
+  it("an edit pointerdown is not prevented: that would swallow the mousedown that has to be", () => {
+    document.body.innerHTML = `<button id="b">${mark("Menu", "k")}</button>`;
+    make().scan(document);
+    expect(fire("pointerdown", byId("b")).defaultPrevented).toBe(false);
+  });
+
+  it("only the click opens: the rest of the gesture calls nothing", () => {
+    document.body.innerHTML = `<button id="b">${mark("Menu", "k")}</button>`;
+    const onClick = vi.fn();
+    make({ onClick }).scan(document);
+    for (const type of GESTURE) fire(type, byId("b"));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("an edit gesture on an element that is not highlighted reaches the page", () => {
+    document.body.innerHTML = `<p>${mark("Hi", "k")}</p><button id="b">plain</button>`;
+    const pageHandler = vi.fn();
+    byId("b").addEventListener("mousedown", pageHandler);
+    make().scan(document);
+    fire("mousedown", byId("b"));
+    expect(pageHandler).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("highlighter: a drop-down answers for its options", () => {
+  const keys = (onClick: ReturnType<typeof vi.fn>) => onClick.mock.calls[0]?.[0].map((f: { key: string }) => f.key);
+
+  it("an edit click on a select hands over its own translations and every option's", () => {
+    document.body.innerHTML = `<select id="s" aria-label="${mark("Language", "label")}"><option>${mark("English", "en")}</option><option>${mark("Dansk", "da")}</option></select>`;
+    const onClick = vi.fn();
+    make({ onClick }).scan(document);
+    click(byId("s"));
+    expect(keys(onClick)).toEqual(["label", "en", "da"]);
+  });
+
+  it("a select with nothing of its own still answers for its options", () => {
+    document.body.innerHTML = `<select id="s"><option>${mark("English", "en")}</option><option>${mark("Dansk", "da")}</option></select>`;
+    const onClick = vi.fn();
+    make({ onClick }).scan(document);
+    click(byId("s"));
+    expect(keys(onClick)).toEqual(["en", "da"]);
+  });
+
+  it("an edit mousedown on such a select is prevented, so its list does not open", () => {
+    document.body.innerHTML = `<select id="s"><option>${mark("English", "en")}</option></select>`;
+    make().scan(document);
+    expect(fire("mousedown", byId("s")).defaultPrevented).toBe(true);
+  });
+
+  it("an option that can be clicked itself, in a list box, opens alone", () => {
+    document.body.innerHTML = `<select id="s" size="2"><option id="o">${mark("English", "en")}</option><option>${mark("Dansk", "da")}</option></select>`;
+    const onClick = vi.fn();
+    make({ onClick }).scan(document);
+    click(byId("o"));
+    expect(keys(onClick)).toEqual(["en"]);
+  });
+
+  it("a select with no translations at all is left alone", () => {
+    document.body.innerHTML = `<p>${mark("Hi", "k")}</p><select id="s"><option>plain</option></select>`;
+    const onClick = vi.fn();
+    make({ onClick }).scan(document);
+    expect([click(byId("s")).defaultPrevented, onClick.mock.calls.length]).toEqual([false, 0]);
+  });
+});
+
+describe("highlighter: armed while the modifier is held", () => {
+  const armed = () => document.documentElement.hasAttribute(HL_ARMED);
+  const key = (type: string, init: KeyboardEventInit) => window.dispatchEvent(new KeyboardEvent(type, { bubbles: true, ...init }));
+  const start = () => {
+    document.body.innerHTML = `<p id="p">${mark("Hi", "k")}</p>`;
+    const h = make();
+    h.scan(document);
+    return h;
+  };
+
+  it("the page is not armed at rest", () => {
+    start();
+    expect(armed()).toBe(false);
+  });
+
+  it("pressing the modifier arms it", () => {
+    start();
+    key("keydown", { key: "Alt", altKey: true });
+    expect(armed()).toBe(true);
+  });
+
+  it("releasing the modifier disarms it", () => {
+    start();
+    key("keydown", { key: "Alt", altKey: true });
+    key("keyup", { key: "Alt", altKey: false });
+    expect(armed()).toBe(false);
+  });
+
+  it("the pointer moving with the modifier held arms it: the key may have been pressed while the panel had focus", () => {
+    start();
+    fire("pointermove", byId("p"));
+    expect(armed()).toBe(true);
+  });
+
+  it("the pointer moving without it disarms it", () => {
+    start();
+    fire("pointermove", byId("p"));
+    fire("pointermove", byId("p"), { altKey: false });
+    expect(armed()).toBe(false);
+  });
+
+  it("the window losing focus disarms it: the release will never be heard", () => {
+    start();
+    key("keydown", { key: "Alt", altKey: true });
+    window.dispatchEvent(new Event("blur"));
+    expect(armed()).toBe(false);
+  });
+
+  it("clearing disarms it and stops listening", () => {
+    const h = start();
+    key("keydown", { key: "Alt", altKey: true });
+    h.clear();
+    key("keydown", { key: "Alt", altKey: true });
+    expect(armed()).toBe(false);
   });
 });
 
