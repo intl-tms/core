@@ -29,7 +29,7 @@ function escapeSegment(segment: string, separator: string): string {
   return segment.replaceAll("\\", "\\\\").replaceAll(separator, `\\${separator}`);
 }
 
-function walk(node: Catalog, prefix: string, ancestors: Set<Catalog>, separator: string): Catalog {
+function walk(node: Catalog, prefix: string, ancestors: Set<Catalog>, separator: string, leaf: (value: string, key: string) => string): Catalog {
   ancestors.add(node);
   const out: Catalog = {};
   for (const name of Object.keys(node)) {
@@ -37,14 +37,26 @@ function walk(node: Catalog, prefix: string, ancestors: Set<Catalog>, separator:
     const segment = escapeSegment(name, separator);
     const path = prefix === "" ? segment : `${prefix}${separator}${segment}`;
     let marked: unknown = value;
-    if (typeof value === "string") marked = encode(value, path);
-    else if (isPlainObject(value) && !ancestors.has(value)) marked = walk(value, path, ancestors, separator);
+    if (typeof value === "string") marked = leaf(value, path);
+    else if (isPlainObject(value) && !ancestors.has(value)) marked = walk(value, path, ancestors, separator, leaf);
     // A key named "__proto__" must become an own property, not the prototype.
     if (name === "__proto__") Object.defineProperty(out, name, { value: marked, enumerable: true, writable: true, configurable: true });
     else out[name] = marked;
   }
   ancestors.delete(node);
   return out;
+}
+
+const separatorOf = (options: MarkOptions): string => (options.separator === undefined || options.separator === "" ? DEFAULT_SEPARATOR : options.separator);
+
+/**
+ * A new Catalog of the same shape in which every string is what `leaf` made of
+ * it, given the key {@link markCatalog} would mark it with. It is the one walk
+ * of a Catalog, so nothing that rewrites messages can disagree with marking
+ * about what a key is. Never changes the input and is not memoised.
+ */
+export function mapCatalog<T extends Catalog>(catalog: T, leaf: (value: string, key: string) => string, options: MarkOptions = {}): T {
+  return walk(catalog, "", new Set(), separatorOf(options), leaf) as T;
 }
 
 /**
@@ -66,11 +78,11 @@ function walk(node: Catalog, prefix: string, ancestors: Set<Catalog>, separator:
  * combined, so every source is marked the same way.
  */
 export function markCatalog<T extends Catalog>(catalog: T, options: MarkOptions = {}): T {
-  const separator = options.separator === undefined || options.separator === "" ? DEFAULT_SEPARATOR : options.separator;
+  const separator = separatorOf(options);
   let bySeparator = memo.get(catalog);
   const cached = bySeparator?.get(separator);
   if (cached !== undefined) return cached as T;
-  const marked = walk(catalog, "", new Set(), separator);
+  const marked = walk(catalog, "", new Set(), separator, encode);
   if (bySeparator === undefined) memo.set(catalog, (bySeparator = new Map()));
   bySeparator.set(separator, marked);
   return marked as T;

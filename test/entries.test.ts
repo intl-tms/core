@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as website from "../src/website.js";
 import * as tools from "../src/tools.js";
+import * as storybook from "../src/storybook.js";
 
 describe("package entries", () => {
   it("Z1: the website entry's public names equal the pinned list", () => {
@@ -71,5 +72,9 @@ describe("package entries", () => {
         "visibleLocales",
       ].sort(),
     );
+  });
+
+  it("the workbench entry's public names equal the pinned list", () => {
+    expect(Object.keys(storybook).sort()).toEqual(["EDIT_GLOBAL", "PANEL_CSS", "PANEL_VIEW_TEXT", "STORYBOOK_TEXT", "createLog", "createPanelView", "createStorybookAddon"].sort());
   });
 });

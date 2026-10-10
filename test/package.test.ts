@@ -24,13 +24,14 @@ function moduleGraph(entry: string): Set<string> {
 }
 const names = (graph: Set<string>): string[] => [...graph].map((file) => file.slice(SRC.length + 1)).sort();
 
-const DOM_MODULES = ["scanner.ts", "highlighter.ts", "picker.ts", "session.ts"];
+const DOM_MODULES = ["scanner.ts", "highlighter.ts", "picker.ts", "session.ts", "panel-view.ts", "panel-style.ts", "storybook-addon.ts"];
 const SERVER_MODULES = ["handler.ts", "storage.ts", "conformance.ts"];
 const DOM_TOKENS = /\b(document|window|HTMLElement|Element|MutationObserver|TreeWalker|Node|Text|MouseEvent|getComputedStyle)\b/;
 
 describe("package: module graphs", () => {
   const website = moduleGraph(join(SRC, "website.ts"));
   const tools = moduleGraph(join(SRC, "tools.ts"));
+  const storybook = moduleGraph(join(SRC, "storybook.ts"));
 
   it("the graph walker sees the server modules from the website entry (so the checks below are not vacuous)", () => {
     expect(names(website)).toEqual(expect.arrayContaining(["handler.ts", "storage.ts", "codec.ts", "catalog.ts"]));
@@ -52,13 +53,22 @@ describe("package: module graphs", () => {
     expect(names(tools).filter((name) => SERVER_MODULES.includes(name))).toEqual([]);
   });
 
+  it("the workbench entry's module graph contains no server code", () => {
+    expect(names(storybook)).toEqual(expect.arrayContaining(["storybook-addon.ts", "panel-view.ts", "session.ts"]));
+    expect(names(storybook).filter((name) => SERVER_MODULES.includes(name))).toEqual([]);
+  });
+
+  it("the editing-tool entry carries no view: the built-in panel is the workbench entry's alone", () => {
+    expect(names(tools).filter((name) => ["panel-view.ts", "panel-style.ts", "panel-log.ts", "storybook-addon.ts"].includes(name))).toEqual([]);
+  });
+
   it("the panel modules reach no DOM code", () => {
     const panel = names(moduleGraph(join(SRC, "panel-store.ts")));
     expect(panel.filter((name) => DOM_MODULES.includes(name) || name === "client.ts")).toEqual([]);
   });
 
   it("every source module belongs to at least one entry", () => {
-    const reachable = new Set([...names(website), ...names(tools)]);
+    const reachable = new Set([...names(website), ...names(tools), ...names(storybook)]);
     expect(sources().map((f) => f.slice(SRC.length + 1)).filter((name) => !reachable.has(name))).toEqual([]);
   });
 });
@@ -74,8 +84,8 @@ describe("package: manifest", () => {
     expect(manifest.sideEffects).toBe(false);
   });
 
-  it("PKG-5: there are exactly two entry points", () => {
-    expect(Object.keys(manifest.exports as object)).toEqual([".", "./tools"]);
+  it("PKG-5: there are exactly three entry points", () => {
+    expect(Object.keys(manifest.exports as object)).toEqual([".", "./tools", "./storybook"]);
   });
 
   it("PKG-2: each entry ships type declarations", () => {

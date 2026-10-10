@@ -361,3 +361,87 @@ rule of building only those a milestone lists:
 - **Order:** method (405), origin (403), authorization (401), content type
   (415), JSON (400). A forged cross-site form post therefore never reaches
   authorization, storage or the body rules.
+
+## Storybook addon (after M10)
+
+- **A third entry, `./storybook`.** This replaces M10's "two entries". The
+  website and editing-tool entries are unchanged, and a test pins that the
+  editing-tool entry still reaches no view module.
+- **Configured in code, in the preview file, not registered as a Storybook
+  addon package.** The options are a configuration object or address, a request
+  function and callbacks: values that only exist in the preview bundle and that
+  a `main.ts` preset, which runs in Node, could not carry.
+- **Nothing is imported from Storybook.** A decorator is a function, a toolbar
+  switch is a `globalTypes` entry, and both are plain values. So the package
+  keeps zero dependencies (no peer dependency either), the addon works with
+  every renderer, and it does not break on a Storybook major. The price is the
+  next decision.
+- **The panel is in the preview, not in Storybook's addon panel.** A manager
+  panel needs Storybook's manager API and React, i.e. dependencies and a
+  bundled manager entry, plus a message protocol between two frames like the
+  Extension's. In the preview the session and the panel share a document, the
+  panel also works in docs mode (where the manager hides addon panels), and
+  nothing has to be relayed. Rejected for now, not ruled out: a manager panel
+  can be added as a separate package on top of this entry.
+- **The Core now ships one view.** `createPanelView` is plain DOM over the
+  panel store, a port of the Extension's panel including its Diagnostics pane
+  and log (`createLog`). A failed configuration load is logged there too,
+  with the address and the reason, which the Extension reports in its popup.
+  The earlier statement "no view code" now holds for the website and
+  editing-tool entries. The Extension keeps its own view; moving it onto this
+  one is possible and was not done here.
+- **Shadow root.** The panel's frame is a `<div data-tms-panel>` appended to
+  the body with an open shadow root. That isolates styles both ways and keeps
+  the panel's text out of the scan (shadow roots are not scanned). The panel
+  styles are rules inside the shadow root; like the highlighter, no inline
+  style is written.
+- **Keyboard events stop at the panel's frame.** Storybook listens for
+  single-key shortcuts on the preview document and, through a shadow root,
+  sees typing as coming from a plain element.
+- **The switch is a global named `tmsEdit`** with the values `"on"` and
+  `"off"`, shown as a toolbar menu. It is the workbench's Toggle: a
+  user-interface switch that protects nothing. No cookie is set, because the
+  messages are marked in the preview, not by a server.
+- **The Current Locale** is the Developer's `locale` function, then the global
+  named `locale` (the name Storybook's own documentation uses), then
+  `<html lang>`, then the Source Locale; resolved to the configured spelling.
+- **Usage is never reported**, because a story's address is not a page of the
+  website. Usage is still read and shown, and an address opens in a new tab,
+  never in the preview.
+- **A save that leaves the story stale is not followed by a reload.** A reload
+  would render the bundled message again. The panel says so instead, and
+  `mark` lays every value saved from this preview over the Catalog of the
+  Locale it was saved in, so the next render shows it. The overlay lives in
+  memory and is never applied while editing is off.
+- **Stored values are read for the keys a story shows.** A story is rendered
+  from what the workbench bundled, so a value saved on the website (or before
+  a reload) would otherwise be visible in the panel and not in the story.
+  After every scan the addon reads each key it has not asked for yet: one
+  request per key (there is no bulk read), each key once per editing session,
+  at most `STORED_READ_LIMIT` (6) at a time. All Locales of the answer are
+  kept, so changing the story's Locale needs no new read. A failed read is
+  not repeated until editing is switched on again.
+- **A stored value is written into the story only where text can simply be
+  replaced**: the stored value is a Plain message and so is the bundled one,
+  as far as `mark` has seen it. A bundled rich message reaches the page as
+  several nodes, and replacing one of them would show half of each. Those
+  cases wait for the next render, where `mark` supplies the stored message to
+  the formatter. Nothing from Storybook is imported, so the addon cannot ask
+  for that render itself.
+- **`Session.show(key, value)`** is the session's existing write-into-the-page
+  step made callable, for a Host that knows a newer value than the page was
+  rendered with.
+- **A value saved here wins over a read that answers later.** While a save
+  of a key is on its way, the value read earlier for that key is not shown:
+  the save writes the new value into the page itself, and the older one must
+  not be put back over it.
+- **`mapCatalog`** is the Catalog walk with the leaf function made a
+  parameter, so the overlay and marking cannot disagree about what a key is.
+  It is internal: not on any entry.
+- **A configuration given as an address** is fetched once, when editing is
+  first switched on, validated for shape and protocol like the Extension does,
+  and retried the next time editing is switched on after a failure. A failure
+  leaves outlines working and is shown in the panel and written to the console
+  with the `[intl-tms]` prefix.
+- **Verified in a real browser** against Storybook 10.6 (`@storybook/nextjs-vite`)
+  in the demo app; the automated tests run in a simulated DOM.

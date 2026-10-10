@@ -56,6 +56,13 @@ export interface Session {
    * - `untouched`: the save did not include the Current Locale, or it failed.
    */
   save(key: string, writes: Record<string, LocaleWrite>): Promise<SaveOutcome>;
+  /**
+   * Writes `value` into every Occurrence of `key` on the page, Marker kept,
+   * and scans again. For a Host that knows a newer value than the page was
+   * rendered with. The value must be a Plain message: the page shows exactly
+   * the text it is given. Does nothing for a key the page does not hold.
+   */
+  show(key: string, value: string): void;
   /** Opens a Hidden item for editing, exactly as if it had been clicked. A stale id does nothing. */
   openHidden(id: string): void;
   /** Flashes a Hidden item on the page, to locate something that has no visible text. A stale id does nothing. */
@@ -171,6 +178,9 @@ export function createSession(options: SessionOptions): Session {
       root = target;
       highlighter.scan(target);
       highlighter.observe(target);
+    },
+    show(key, value) {
+      if (root !== undefined && lastFound.some((found) => found.key === key)) writeIntoPage(key, value);
     },
     openHidden(id) {
       const found = hiddenById.get(id);
