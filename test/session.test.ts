@@ -647,3 +647,47 @@ describe("session: saving", () => {
     expect(onScan).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("session: showing a value the page did not render", () => {
+  it("writes it into every Occurrence of the key and leaves other keys alone", () => {
+    document.body.innerHTML = `<p id="a">${mark("Hej", "greeting")}</p><p id="b">${mark("Hej", "greeting")}</p><p id="c">${mark("Farvel", "bye")}</p>`;
+    session = build(fakes());
+    session.start(document);
+    session.show("greeting", "Hej verden");
+    expect(["a", "b", "c"].map((id) => strip(byId(id).textContent!))).toEqual(["Hej verden", "Hej verden", "Farvel"]);
+  });
+
+  it("keeps the Marker, so the text stays editable", () => {
+    document.body.innerHTML = `<p id="a">${mark("Hej", "greeting")}</p>`;
+    session = build(fakes());
+    session.start(document);
+    session.show("greeting", "Hej verden");
+    expect(decode(byId("a").textContent!)?.key).toBe("greeting");
+  });
+
+  it("writes an attribute translation into its attribute", () => {
+    document.body.innerHTML = `<img id="a" alt="${mark("Logo", "logo.alt")}">`;
+    session = build(fakes());
+    session.start(document);
+    session.show("logo.alt", "Vores logo");
+    expect(strip(byId("a").getAttribute("alt")!)).toBe("Vores logo");
+  });
+
+  it("tells the scan hook what the page holds afterwards", () => {
+    document.body.innerHTML = `<p id="a">${mark("Hej", "greeting")}</p>`;
+    const scans: string[][] = [];
+    session = build(fakes(), { onScan: (found) => void scans.push((found as { value: string }[]).map((item) => item.value)) });
+    session.start(document);
+    session.show("greeting", "Hej verden");
+    expect(scans.at(-1)).toEqual(["Hej verden"]);
+  });
+
+  it("does nothing for a key the page does not hold, or before it is started", () => {
+    document.body.innerHTML = `<p id="a">${mark("Hej", "greeting")}</p>`;
+    session = build(fakes());
+    session.show("greeting", "Tidligt");
+    session.start(document);
+    session.show("other", "Andet");
+    expect(strip(byId("a").textContent!)).toBe("Hej");
+  });
+});

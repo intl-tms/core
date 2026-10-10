@@ -19,7 +19,10 @@ The website stores the change through a storage adapter **you** write.
 - **Off means off.** With editing switched off your output is byte-for-byte what
   it would be without the Core.
 
-It contains no view code, no storage code and no i18n-library code.
+It contains no storage code and no i18n-library code. The website and
+editing-tool entries contain no view code either; the one view the package
+ships is the plain-DOM panel of the [Storybook addon](#storybook), on its own
+entry.
 
 ## Quick start
 
@@ -72,6 +75,83 @@ session.start(document);
 
 The panel store is the session's sink directly. Render `panel.getState()` however
 you like and subscribe with `panel.subscribe`.
+
+## Storybook
+
+Translations can be edited in Storybook as well, with no browser extension. The
+addon is configured in code, in `.storybook/preview.ts`, and imports nothing
+from Storybook, so it works with every renderer and adds no dependency.
+
+```tsx
+import { NextIntlClientProvider } from "next-intl";
+import { createStorybookAddon } from "@intl-tms/core/storybook";
+import en from "../messages/en.json";
+import da from "../messages/da.json";
+
+const messages = { en, da };
+
+const tms = createStorybookAddon({
+  // The address of your handler's configuration endpoint, or the resolved configuration itself.
+  config: "https://app.example.com/api/tms/config",
+});
+
+export default {
+  globalTypes: {
+    locale: { toolbar: { title: "Locale", icon: "globe", items: ["en", "da"] } },
+    ...tms.globalTypes, // the "Edit translations" switch in the toolbar
+  },
+  initialGlobals: { locale: "en", ...tms.initialGlobals },
+  decorators: [
+    // Yours: hand your i18n library the messages, marked while edit mode is on.
+    (Story, context) => (
+      <NextIntlClientProvider locale={context.globals.locale} messages={tms.mark(messages[context.globals.locale], context)}>
+        <Story />
+      </NextIntlClientProvider>
+    ),
+    tms.decorator, // the editing session and the panel
+  ],
+};
+```
+
+Switch **Edit translations** on in the toolbar, hold Alt and click an outlined
+text. The panel is docked inside the preview, and saves go to the same
+endpoints the website serves.
+
+| Option | Meaning |
+| --- | --- |
+| `config` | Required. The configuration endpoint's address, used exactly as written, or a resolved configuration object. |
+| `request` | How requests are made; defaults to `fetch`. Add a token header here, or call a handler directly: `(url, init) => handler(new Request(url, init))` needs no server. |
+| `credentials` | `"include"` sends the website's cookies from Storybook's origin. |
+| `locale` | `(context) => string`, the Locale a story is rendered in. Defaults to the `locale` global, then `<html lang>`, then the Source Locale. |
+| `editing` | Start switched on. Defaults to off. |
+| `placement` | `"right"` (default), `"left"` or `"bottom"`. |
+| `onSaved` | Called with `{ key, writes, outcome }` after every save that got an answer. |
+| `timeoutMs` | The time limit of every request. |
+
+Things to know:
+
+- **Storybook is another origin.** List it in the handler's cross-origin policy,
+  `cors: { origins: ["http://localhost:6006"] }`, or writes are refused with
+  `403` and reads are blocked by the browser. `authorize` still decides who may
+  read and write: give the addon a `request` that carries what it checks.
+- **Off means off here too.** With the switch off, `tms.mark` returns the very
+  same Catalog, and no request, element or stylesheet is created.
+- **A story shows what the store holds, not only what Storybook bundled.** While
+  edit mode is on, the addon reads the stored values of every key a story
+  shows (one request per key, each key once, six at a time), writes a value
+  that differs into the story, and `tms.mark` lays them over the Catalog for
+  later renders. A message that needs the formatter (an argument, a plural,
+  tags) is not replaced in place; it shows on the story's next render. With
+  edit mode off a story is exactly the bundled messages.
+- **Usage is never reported from Storybook.** A story's address is not a page
+  of the website. "Used on" still lists the website's pages and opens them in a
+  new tab.
+- **Diagnostics.** The panel ends with a collapsed Diagnostics pane that logs
+  the configuration, every opened key, every read and every save with what
+  was sent and answered. It opens by itself when something fails, including a
+  configuration that would not load.
+- The panel lives in a shadow root in the preview, so story styles and panel
+  styles cannot reach each other, and it works in docs mode as well.
 
 ### Your storage adapter
 
@@ -150,8 +230,8 @@ your `onError` hook, never to the response.
   authorization runs**. "The website's own" is the origin of the request URL or
   of your base path, so a proxy that rewrites the URL is fine. A request with no
   `Origin` header (a server, a script) is allowed: it carries no ambient
-  cookies to abuse. If a browser extension talks to your endpoints from its own
-  origin, list that origin in `cors.origins`. Reads are not origin-checked; the
+  cookies to abuse. If a browser extension or a Storybook talks to your
+  endpoints from its own origin, list that origin in `cors.origins`. Reads are not origin-checked; the
   cross-origin policy decides who may read the answer.
 - **The highlighter injects one `<style>` element.** It never writes inline
   styles, but a page whose content security policy forbids inline `<style>`
@@ -182,9 +262,9 @@ a wrong key.
 
 ## Entry points
 
-Two audiences, two entries. Only the website entry carries a stability promise;
-the editing-tool entry changes with the tools that consume it, so pin an exact
-version if you build on it.
+Three audiences, three entries. Only the website entry carries a stability
+promise; the editing-tool and Storybook entries change with the tools that
+consume them, so pin an exact version if you build on them.
 
 ### `@intl-tms/core` (website)
 
@@ -214,6 +294,20 @@ version if you build on it.
 | Panel store | `createPanelStore` |
 | Panel logic | `buildChanges`, `changedColumns`, `shouldRenderToolbar`, `resolveToolbarFilters`, `visibleLocales`, `hiddenErrors`, `usagePath`, `relativeTime`, `conflictNotice`, `explainSaveFailure`, `fieldText`, `PANEL_TEXT` |
 | Shared rule | `isSharedKey`, `SHARED_NOTICE` |
+
+### `@intl-tms/core/storybook` (Storybook addon)
+
+| Group | Exports |
+| --- | --- |
+| Addon | `createStorybookAddon`, `EDIT_GLOBAL`, `STORYBOOK_TEXT` |
+| Built-in panel | `createPanelView`, `createLog`, `PANEL_CSS`, `PANEL_VIEW_TEXT` |
+
+`createPanelView` is the addon's panel on its own: plain DOM over
+`createPanelStore`, for a Host that wants a working panel without writing a
+view. It is a session's sink directly, and it carries the same Diagnostics
+pane as the Extension's panel: a log of every open, read and save, opened
+automatically when something fails, with Copy and Clear. `createLog` is that
+log, for a Host that wants to add entries of its own.
 
 The list of public names on each entry is pinned by a test.
 

@@ -1,7 +1,7 @@
 {
   "name": "@intl-tms/core",
   "version": "0.1.0",
-  "description": "Core of an in-context translation management system: marker codec, catalog marking, request handler, page-side editing flow and panel state machine.",
+  "description": "Core of an in-context translation management system: marker codec, catalog marking, request handler, page-side editing flow, panel state machine and a Storybook addon.",
   "type": "module",
   "sideEffects": false,
   "license": "UNLICENSED",
@@ -16,6 +16,10 @@
     "./tools": {
       "types": "./dist/tools.d.ts",
       "default": "./dist/tools.js"
+    },
+    "./storybook": {
+      "types": "./dist/storybook.d.ts",
+      "default": "./dist/storybook.js"
     }
   },
   "scripts": {

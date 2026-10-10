@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { decode, strip } from "../src/codec.js";
-import { markCatalog } from "../src/catalog.js";
+import { mapCatalog, markCatalog } from "../src/catalog.js";
 
 type Tree = Record<string, unknown>;
 const keyOf = (value: unknown): string | undefined => decode(value as string)?.key;
@@ -121,5 +121,24 @@ describe("catalog marking: static type", () => {
   it("CAT-7: a typed Catalog stays typed", () => {
     const catalog = { nav: { home: "Home" }, count: 3 };
     expectTypeOf(markCatalog(catalog)).toEqualTypeOf<{ nav: { home: string }; count: number }>();
+  });
+});
+
+describe("catalog mapping", () => {
+  it("hands every string its value and the key marking would give it, escaping included", () => {
+    const seen: string[] = [];
+    mapCatalog({ a: { "b.c": "x" }, d: "y", n: 1 }, (value, key) => (seen.push(`${key}=${value}`), value));
+    expect(seen).toEqual(["a.b\\.c=x", "d=y"]);
+  });
+
+  it("returns a new tree and leaves the input alone", () => {
+    const input = { a: { b: "x" }, n: 1 };
+    expect([mapCatalog(input, (value) => value.toUpperCase()), input]).toEqual([{ a: { b: "X" }, n: 1 }, { a: { b: "x" }, n: 1 }]);
+  });
+
+  it("follows the chosen separator", () => {
+    const seen: string[] = [];
+    mapCatalog({ a: { b: "x" } }, (value, key) => (seen.push(key), value), { separator: "/" });
+    expect(seen).toEqual(["a/b"]);
   });
 });

@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
+import * as storybook from "../src/storybook.js";
 import * as tools from "../src/tools.js";
 import * as website from "../src/website.js";
 
@@ -22,6 +23,10 @@ describe("readme", () => {
 
   it("the editing-tool export table names exactly the editing-tool entry's runtime exports", () => {
     expect([...new Set(exportedNames("### `@intl-tms/core/tools` (editing tools)"))].sort()).toEqual(Object.keys(tools).sort());
+  });
+
+  it("the workbench export table names exactly the workbench entry's runtime exports", () => {
+    expect([...new Set(exportedNames("### `@intl-tms/core/storybook` (Storybook addon)"))].sort()).toEqual(Object.keys(storybook).sort());
   });
 
   it("the route table lists the five routes", () => {
