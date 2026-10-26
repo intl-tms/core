@@ -1,10 +1,27 @@
 {
   "name": "@intl-tms/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Core of an in-context translation management system: marker codec, catalog marking, request handler, page-side editing flow, panel state machine and a Storybook addon.",
   "type": "module",
   "sideEffects": false,
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "author": "Tobias Secher",
+  "homepage": "https://intl-tms.github.io/docs/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/intl-tms/core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/intl-tms/core/issues"
+  },
+  "keywords": [
+    "i18n",
+    "translation",
+    "tms",
+    "in-context-editing",
+    "next-intl",
+    "localization"
+  ],
   "files": [
     "dist"
   ],

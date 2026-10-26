@@ -1,5 +1,14 @@
 # @intl-tms/core
 
+> [!WARNING]
+> **Under active development. Do not use in production.**
+> The API can change between any two releases. The Core ships no
+> authentication: every request is allowed or denied only by the `authorize`
+> function you write, and the demo app allows anyone to edit while editing is
+> switched on.
+
+Documentation: <https://intl-tms.github.io/docs/>
+
 The **Core** of an in-context translation management system: the library-agnostic
 package that sits on both sides of the seam between a website and the editing
 tools that work on it.
@@ -354,3 +363,7 @@ npm run lint      # eslint plus repository checks (platform imports, doc comment
 npm run build     # emits ESM and type declarations to dist/
 npm run check     # all of the above
 ```
+
+## License
+
+[MIT](./LICENSE)
