@@ -1,6 +1,6 @@
 {
   "name": "@intl-tms/core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Core of an in-context translation management system: marker codec, catalog marking, request handler, page-side editing flow, panel state machine and a Storybook addon.",
   "type": "module",
   "sideEffects": false,
