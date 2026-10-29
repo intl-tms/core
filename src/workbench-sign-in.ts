@@ -142,7 +142,7 @@ export function createWorkbenchSignIn(options: WorkbenchSignInOptions): Workbenc
   let state: SignInState = held === undefined ? { status: "signed-out" } : { status: "signed-in" };
   /** The help text of a `401`, kept for when the Editor is signed out again. */
   let signedOutHelp: string | undefined;
-  let popup: { window: Window; proof: string; poll: unknown } | undefined;
+  let popup: { window: Window; proof: string; poll: unknown; closedSeen: boolean } | undefined;
 
   const set = (next: SignInState): void => {
     state = next;
@@ -261,10 +261,12 @@ export function createWorkbenchSignIn(options: WorkbenchSignInOptions): Workbenc
     const proof = base64url(win.crypto.getRandomValues(new Uint8Array(32)));
     const poll = win.setInterval(() => {
       if (popup?.window !== opened || !opened.closed) return;
+      // The pop-up closes right after posting its message: give the message one more turn to arrive.
+      if (!popup.closedSeen) return void (popup.closedSeen = true);
       closePopup();
       if (state.status === "signing-in") set(signedOut(before));
     }, CLOSED_POLL_MS);
-    popup = { window: opened, proof, poll };
+    popup = { window: opened, proof, poll, closedSeen: false };
     win.addEventListener("message", onMessage);
     set({ status: "signing-in" });
     const pairing = address;

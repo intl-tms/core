@@ -550,9 +550,14 @@ rule of building only those a milestone lists:
   session storage, and never written anywhere else.
 - **The sign-in area shows once the website has said it offers pairing** (a
   `401` naming a pairing address) or a token is held. A `401` for the
-  configuration is then not shown as a failure notice: the sign-in line says
-  it, and the diagnostics log keeps it. A website without pairing still gets
-  the notice it got before.
+  configuration is then not a failure: no notice, no log entry, and the
+  Diagnostics pane does not open; the sign-in line says it. A website without
+  pairing still gets the notice it got before.
+- **The sign-in view is drawn and removed just after the decorator runs**, in
+  a microtask: the decorator runs while the workbench renders a story, and
+  React refuses to render another root in the middle of that.
+- **A closed pop-up is given one more poll** (half a second) before signing
+  in is given up, because the pop-up closes right after posting its message.
 - **`credentials` is no longer an addon option.** Decision 9 makes pairing the
   only way a workbench signs in, also on `localhost`.
 - **A sign-in view that throws** when drawn, or when told a change, is removed

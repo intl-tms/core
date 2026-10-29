@@ -410,8 +410,8 @@ export function createStorybookAddon(options: StorybookAddonOptions): StorybookA
           session.start(running.document);
         }
       } else if (loaded.unauthenticated === true && signIn?.available() === true) {
-        // Not signed in, on a website the Editor can sign in to: the sign-in line says so.
-        running?.view.logFailure("config", "FAILED", `${address}\n${loaded.reason}`);
+        // Not signed in, on a website the Editor can sign in to: the sign-in line says so, and
+        // nothing has failed.
       } else {
         notices.config = STORYBOOK_TEXT.configFailed(loaded.reason);
         running?.view.logFailure("config", "FAILED", `${address}\n${loaded.reason}`);
@@ -564,9 +564,17 @@ export function createStorybookAddon(options: StorybookAddonOptions): StorybookA
       });
     }
     const mounted = mount(document);
-    const unmountSignIn = signIn === undefined ? () => undefined : mountSignIn(mounted.signInArea, mounted.view, signIn);
     mounted.signInArea.hidden = signIn?.available() !== true;
-    running = { document, ...mounted, unmountSignIn };
+    const current = { document, ...mounted, unmountSignIn: (): void => undefined };
+    running = current;
+    // The decorator runs while the workbench renders a story. A view library must not render
+    // into another root in the middle of that, so the sign-in view is drawn just after.
+    const ready = signIn;
+    if (ready !== undefined) {
+      queueMicrotask(() => {
+        if (running === current) current.unmountSignIn = mountSignIn(current.signInArea, current.view, ready);
+      });
+    }
     if (config !== undefined) running.view.setConfig(config);
     showNotices();
     session.start(document);
@@ -576,7 +584,8 @@ export function createStorybookAddon(options: StorybookAddonOptions): StorybookA
   function stop(): void {
     if (running === undefined) return;
     session.stop();
-    running.unmountSignIn();
+    // Removed just after the render that switched editing off, for the same reason it is drawn then.
+    queueMicrotask(running.unmountSignIn);
     running.host.remove();
     running = undefined;
     lastFound = [];

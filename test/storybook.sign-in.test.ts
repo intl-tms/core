@@ -220,8 +220,21 @@ describe("signing in", () => {
     await until(shown);
     inPanel<HTMLButtonElement>("sign-in-button")!.click();
     popup.closed = true;
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await new Promise((resolve) => setTimeout(resolve, 1200));
     expect(inPanel("sign-in-line")!.textContent).toBe(SIGN_IN_TEXT.signedOut);
+  });
+
+  it("a message that arrives just after the pop-up closed still signs in", async () => {
+    const site = website();
+    story();
+    boot(site);
+    await until(shown);
+    inPanel<HTMLButtonElement>("sign-in-button")!.click();
+    const message = await site.popupMessage();
+    popup.closed = true;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    site.deliver(message);
+    await until(() => inPanel("sign-in-line")?.textContent === SIGN_IN_TEXT.editingAs("Ada"));
   });
 
   it("someone without the Editor role is told so, with the website's help", async () => {
