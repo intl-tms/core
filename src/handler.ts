@@ -1,9 +1,10 @@
 // The server half of the wire contract: one function from a standard web
 // request to a standard web response. Web-standard APIs only.
 
-import { judge, type Authorize, type Operation } from "./auth.js";
+import { judge, type Authorize, type Identity, type Operation } from "./auth.js";
 import { ConfigError, type FieldDef, type ResolvedConfig } from "./config.js";
-import type { SignInDescriptor } from "./sign-in.js";
+import { pairingRoutes, type Pairing } from "./pairing.js";
+import { EDITING_TOKEN_HEADER, type SignInDescriptor } from "./sign-in.js";
 import type { MaybePromise, StorageAdapter, StorageContext, UntypedStorageAdapter, UntypedWrite } from "./storage.js";
 import { isHttpUrl } from "./usage.js";
 import { conflictingColumns, isEmptyPatch, writePatch, type ExpectedValues, type KeyMeta, type UsageReport } from "./wire.js";
@@ -39,6 +40,12 @@ export interface HandlerOptions<C extends AnyConfig> {
   onError?: (error: unknown, request: Request) => void;
   /** Cross-origin access, for a caller on another origin such as a workbench addon. */
   cors?: CorsPolicy;
+  /**
+   * Pairing for a workbench addon on another site, from `createPairing`. It
+   * adds the pairing routes under the base path and names the pairing address
+   * in every `401`. A code is handed only to an origin in `cors.origins`.
+   */
+  pairing?: Pairing<Identity>;
 }
 
 /** One function from a web request to a web response. It never rejects. */
@@ -96,6 +103,14 @@ interface CompiledField {
   optionList?: string;
 }
 
+/** The request without its editing token, for anything that might log it. */
+function withoutToken(request: Request): Request {
+  if (!request.headers.has(EDITING_TOKEN_HEADER)) return request;
+  const headers = new Headers(request.headers);
+  headers.delete(EDITING_TOKEN_HEADER);
+  return new Request(request.url, { method: request.method, headers });
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -107,6 +122,8 @@ function setColumn(target: Record<string, string>, name: string, value: string):
 interface Route {
   methods: string;
   serve: (request: Request, context: StorageContext) => Promise<Response>;
+  /** Served without asking the check first: pairing's routes, which decide for themselves. */
+  open?: boolean;
 }
 
 /**
@@ -140,6 +157,13 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
     throw new ConfigError("cors.origins contains a wildcard", "a wildcard origin cannot be combined with credentials, so cross-origin access is only allowed for an explicit list", "list each origin exactly as a browser sends it, for example https://app.example.com");
   }
   const corsOrigins = new Set(cors?.origins ?? []);
+  const pairing = options.pairing === undefined ? undefined : pairingRoutes(options.pairing);
+  if (options.pairing !== undefined && pairing === undefined) {
+    throw new ConfigError("pairing is not from createPairing", "the handler serves the pairing routes that createPairing sets up", "pass what createPairing returns");
+  }
+  if (pairing !== undefined && corsOrigins.size === 0) {
+    throw new ConfigError("pairing is set up and cors.origins is empty", "a sign-in code is handed only to a listed origin, so no workbench could ever sign in", "list the workbench's origin in cors.origins, for example http://localhost:6006");
+  }
   // The website's public origin, from the configuration: behind a proxy that
   // rewrites the request URL, the origin a browser sends is still this one.
   const ownOrigin = new URL(config.basePath ?? config.endpoints.values).origin;
@@ -153,6 +177,7 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
     const signIn = new URL(declared.session.signIn, ownOrigin).href;
     descriptor.session = declared.session.credentials === undefined ? { signIn } : { signIn, credentials: declared.session.credentials };
   }
+  if (pairing !== undefined) descriptor.pair = { address: new URL(`${mount}/pair`, ownOrigin).href };
   if (declared?.help?.unauthenticated !== undefined) descriptor.help = declared.help.unauthenticated;
   const unauthorized = { error: "unauthorized", code: "unauthorized", auth: descriptor };
   const forbidden = declared?.help?.forbidden === undefined ? { error: "forbidden", code: "forbidden" } : { error: "forbidden", code: "forbidden", help: declared.help.forbidden };
@@ -172,7 +197,7 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
 
   const report = (error: unknown, request: Request): void => {
     try {
-      onError(error, request);
+      onError(error, withoutToken(request));
     } catch {
       // A hook that throws must not change the response.
     }
@@ -312,6 +337,23 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
     }
     const [first, second] = segments;
     if (segments.length === 1 && first === "config") return { methods: "GET", serve: serveConfig };
+    if (pairing !== undefined && first === "pair") {
+      if (segments.length === 1) {
+        const context = { authorize, origins: corsOrigins, ownOrigin, ...(declared?.help?.forbidden === undefined ? {} : { forbiddenHelp: declared.help.forbidden }) };
+        return { methods: "GET", open: true, serve: (request) => pairing.page(request, context) };
+      }
+      if (segments.length === 2 && second === "token") {
+        return {
+          methods: "POST",
+          open: true,
+          serve: async (request) => {
+            const body = await readJsonObject(request);
+            return body instanceof Response ? body : pairing.exchange(request, body);
+          },
+        };
+      }
+      if (segments.length === 2 && second === "end") return { methods: "POST", open: true, serve: (request) => pairing.end(request) };
+    }
     if (segments.length === 2 && first === "keys" && second !== "") {
       const key = second as string;
       return { methods: "GET, PUT", serve: (request, context) => (request.method === "PUT" ? writeKey(request, key, context) : readKey(key, context)) };
@@ -344,6 +386,7 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
         return fail(403, "origin not allowed", "forbidden-origin");
       }
     }
+    if (matched.open === true) return matched.serve(request, {});
     const judged = judge(await authorize({ request, operation }));
     if (!judged.allow) return judged.reason === "forbidden" ? json(403, forbidden) : json(401, unauthorized);
     return matched.serve(request, judged.identity === undefined ? {} : { identity: judged.identity });

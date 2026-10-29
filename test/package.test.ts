@@ -25,7 +25,7 @@ function moduleGraph(entry: string): Set<string> {
 const names = (graph: Set<string>): string[] => [...graph].map((file) => file.slice(SRC.length + 1)).sort();
 
 const DOM_MODULES = ["scanner.ts", "highlighter.ts", "picker.ts", "session.ts", "panel-view.ts", "panel-style.ts", "storybook-addon.ts"];
-const SERVER_MODULES = ["handler.ts", "storage.ts", "conformance.ts"];
+const SERVER_MODULES = ["handler.ts", "storage.ts", "conformance.ts", "pairing.ts"];
 const DOM_TOKENS = /\b(document|window|HTMLElement|Element|MutationObserver|TreeWalker|Node|Text|MouseEvent|getComputedStyle)\b/;
 
 describe("package: module graphs", () => {

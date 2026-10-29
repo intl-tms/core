@@ -8,7 +8,15 @@ describe("package entries", () => {
     expect(Object.keys(website).sort()).toEqual(
       [
         "ConfigError",
+        "EDITING_TOKEN_HEADER",
+        "EDITING_TOKEN_LIFETIME_MS",
+        "EDITING_TOKEN_PREFIX",
+        "EDITING_TOKEN_RECHECK_MS",
         "HELP_TEXT_MAX_LENGTH",
+        "PAIRING_CODE_LIFETIME_MS",
+        "PAIRING_TEXT",
+        "createMemoryPairingStore",
+        "createPairing",
         "PROTOCOL_VERSION",
         "allowAll",
         "anyOf",

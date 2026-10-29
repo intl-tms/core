@@ -3,6 +3,15 @@
 
 import { isHttpUrl } from "./usage.js";
 
+/** The request header an editing token travels in. It is accepted from nowhere else. */
+export const EDITING_TOKEN_HEADER = "tms-editing-token";
+
+/** What every editing token starts with, so a person or a secret scanner can tell what it is. */
+export const EDITING_TOKEN_PREFIX = "tmset_";
+
+/** The type of the window message the pairing pop-up sends to a workbench. */
+export const PAIRING_MESSAGE_TYPE = "intl-tms-pair";
+
 /** The longest help text a website may declare and an editing tool will show. */
 export const HELP_TEXT_MAX_LENGTH = 200;
 

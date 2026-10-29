@@ -64,7 +64,9 @@ export type { ConformanceOptions, ConformanceReport, ConformanceResult } from ".
 export { createHandler } from "./handler.js";
 export { allowAll, anyOf, isEditingRequest, sessionCheck } from "./auth.js";
 export type { AuthAnswer, AuthDeclaration, Authorize, AuthorizeContext, HelpTexts, Identity, Operation, SessionCheckOptions } from "./auth.js";
-export { HELP_TEXT_MAX_LENGTH } from "./sign-in.js";
+export { EDITING_TOKEN_HEADER, EDITING_TOKEN_PREFIX, HELP_TEXT_MAX_LENGTH } from "./sign-in.js";
+export { EDITING_TOKEN_LIFETIME_MS, EDITING_TOKEN_RECHECK_MS, PAIRING_CODE_LIFETIME_MS, PAIRING_TEXT, createMemoryPairingStore, createPairing } from "./pairing.js";
+export type { MemoryPairingStore, Pairing, PairingOptions, PairingRecheck, PairingRecord, PairingSession, PairingStore } from "./pairing.js";
 export type { SignInDescriptor } from "./sign-in.js";
 export type { AnyConfig, CorsPolicy, ErrorCode, Handler, HandlerOptions } from "./handler.js";
 export type { ConformanceTarget } from "./conformance.js";

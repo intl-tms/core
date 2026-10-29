@@ -338,6 +338,7 @@ consume them, so pin an exact version if you build on them.
 | Storage | `createMemoryAdapter`, `detectAdapterCapabilities`, `runAdapterConformance` |
 | Handler | `createHandler` |
 | Authorization | `sessionCheck`, `anyOf`, `allowAll`, `isEditingRequest`, `HELP_TEXT_MAX_LENGTH` |
+| Pairing (Storybook sign-in) | `createPairing`, `createMemoryPairingStore`, `EDITING_TOKEN_HEADER`, `EDITING_TOKEN_PREFIX`, `EDITING_TOKEN_LIFETIME_MS`, `EDITING_TOKEN_RECHECK_MS`, `PAIRING_CODE_LIFETIME_MS`, `PAIRING_TEXT` |
 
 ### `@intl-tms/core/tools` (editing tools)
 
