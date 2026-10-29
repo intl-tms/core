@@ -64,10 +64,10 @@ describe("readme", () => {
       expect(response.status).toBe(200);
     });
 
-    it("the handler it builds refuses an unauthorized caller and says where to sign in", async () => {
+    it("the handler it builds refuses an unauthorized caller", async () => {
       const { handler } = await load();
       const response = await handler(new Request("https://app.example.com/api/tms/config"));
-      expect([response.status, (await response.json()).auth.session.signIn]).toEqual([401, "https://app.example.com/editors/sign-in"]);
+      expect([response.status, (await response.json()).code]).toEqual([401, "unauthorized"]);
     });
 
     it("the handler it builds saves a translation", async () => {

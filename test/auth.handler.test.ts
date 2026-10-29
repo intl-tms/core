@@ -52,39 +52,31 @@ describe("the authorization outcome", () => {
 });
 
 describe("the sign-in descriptor", () => {
-  const signedOut = sessionCheck({ user: () => null, may: () => true, signIn: "/editors/sign-in" });
+  const signedOut = sessionCheck({ user: () => null, may: () => true });
 
-  it("a 401 names the session and the sign-in address, resolved against the base path's origin", async () => {
+  it("a 401 from a session check carries an empty descriptor", async () => {
     const reply = await setup({ authorize: signedOut }).call("GET", `${MOUNT}/keys/k`);
-    expect(reply.body).toEqual({ error: "unauthorized", code: "unauthorized", auth: { session: { signIn: `${ORIGIN}/editors/sign-in` } } });
-  });
-
-  it("an absolute sign-in address is kept as it is", async () => {
-    const check = sessionCheck({ user: () => null, may: () => true, signIn: "https://login.app.test/editors" });
-    expect((await setup({ authorize: check }).call("GET", `${MOUNT}/config`)).body.auth.session.signIn).toBe("https://login.app.test/editors");
+    expect(reply.body).toEqual({ error: "unauthorized", code: "unauthorized", auth: {} });
   });
 
   it("says when requests must include credentials", async () => {
-    const check = sessionCheck({ user: () => null, may: () => true, signIn: "/in", credentials: true });
-    expect((await setup({ authorize: check }).call("GET", `${MOUNT}/config`)).body.auth.session).toEqual({ signIn: `${ORIGIN}/in`, credentials: true });
+    const check = sessionCheck({ user: () => null, may: () => true, credentials: true });
+    expect((await setup({ authorize: check }).call("GET", `${MOUNT}/config`)).body.auth).toEqual({ credentials: true });
   });
 
   it("never depends on what the request carried", async () => {
-    const plain = await setup({ authorize: signedOut }).call("GET", `${MOUNT}/config`);
-    const odd = await setup({ authorize: signedOut }).call("GET", `${MOUNT}/config`, { headers: { cookie: "x=1", referer: "https://elsewhere.test/" } });
+    const check = sessionCheck({ user: () => null, may: () => true, credentials: true, help: { unauthenticated: "Sign in with your company account." } });
+    const plain = await setup({ authorize: check }).call("GET", `${MOUNT}/config`);
+    const odd = await setup({ authorize: check }).call("GET", `${MOUNT}/config`, { headers: { cookie: "x=1", referer: "https://elsewhere.test/" } });
     expect(odd.body).toEqual(plain.body);
   });
 
   it("is on every route", async () => {
-    const { call } = setup({ authorize: signedOut });
+    const { call } = setup({ authorize: sessionCheck({ user: () => null, may: () => true, credentials: true }) });
     for (const [method, path] of [["GET", `${MOUNT}/config`], ["GET", `${MOUNT}/keys/k`], ["PUT", `${MOUNT}/keys/k`], ["POST", `${MOUNT}/usage`], ["GET", `${MOUNT}/usage/k`]] as const) {
       const reply = await call(method, path, method === "GET" ? {} : { body: { locale: "da", value: "x" } });
-      expect([method, path, reply.status, reply.body.auth?.session?.signIn]).toEqual([method, path, 401, `${ORIGIN}/editors/sign-in`]);
+      expect([method, path, reply.status, reply.body.auth]).toEqual([method, path, 401, { credentials: true }]);
     }
-  });
-
-  it.each(["", "editors/sign-in", "javascript:alert(1)", "ftp://app.test/in", "//evil.test/in"])("a sign-in address %j throws at boot", (signIn) => {
-    expect(() => sessionCheck({ user: () => null, may: () => true, signIn })).toThrow(ConfigError);
   });
 });
 
@@ -92,54 +84,54 @@ describe("help texts", () => {
   const help = { unauthenticated: "Sign in with your company account.", forbidden: "Ask IT at it@example.com for the Editor role." };
 
   it("the not-authenticated text is part of the descriptor", async () => {
-    const check = sessionCheck({ user: () => null, may: () => true, signIn: "/in", help });
-    expect((await setup({ authorize: check }).call("GET", `${MOUNT}/config`)).body.auth).toEqual({ session: { signIn: `${ORIGIN}/in` }, help: help.unauthenticated });
+    const check = sessionCheck({ user: () => null, may: () => true, help });
+    expect((await setup({ authorize: check }).call("GET", `${MOUNT}/config`)).body.auth).toEqual({ help: help.unauthenticated });
   });
 
   it("the not-permitted text is in the body of a 403", async () => {
-    const check = sessionCheck({ user: () => editor, may: () => false, signIn: "/in", help });
+    const check = sessionCheck({ user: () => editor, may: () => false, help });
     expect((await setup({ authorize: check }).call("GET", `${MOUNT}/config`)).body).toEqual({ error: "forbidden", code: "forbidden", help: help.forbidden });
   });
 
   it("a text of 200 characters is accepted", () => {
-    expect(() => sessionCheck({ user: () => null, may: () => true, signIn: "/in", help: { forbidden: "x".repeat(200) } })).not.toThrow();
+    expect(() => sessionCheck({ user: () => null, may: () => true, help: { forbidden: "x".repeat(200) } })).not.toThrow();
   });
 
   it.each([["too long", "x".repeat(201)], ["a line break", "one\ntwo"], ["a carriage return", "one\rtwo"], ["a control character", "one\u0007two"], ["empty", ""], ["not a string", 42]])("a text that is %s throws at boot", (_, text) => {
-    expect(() => sessionCheck({ user: () => null, may: () => true, signIn: "/in", help: { unauthenticated: text as string } })).toThrow(ConfigError);
+    expect(() => sessionCheck({ user: () => null, may: () => true, help: { unauthenticated: text as string } })).toThrow(ConfigError);
   });
 });
 
 describe("the session check", () => {
   it("nobody signed in is not authenticated", async () => {
-    const check = sessionCheck({ user: () => undefined, may: () => true, signIn: "/in" });
+    const check = sessionCheck({ user: () => undefined, may: () => true });
     expect(await check({ request: new Request(`${ORIGIN}/`), operation: "read" })).toBe(false);
   });
 
   it("a user who may is allowed, with their identity", async () => {
-    const check = sessionCheck({ user: async () => ({ ...editor, roles: ["Editor"] }), may: (user) => user.roles.includes("Editor"), signIn: "/in" });
+    const check = sessionCheck({ user: async () => ({ ...editor, roles: ["Editor"] }), may: (user) => user.roles.includes("Editor") });
     expect(await check({ request: new Request(`${ORIGIN}/`), operation: "read" })).toEqual({ identity: editor });
   });
 
   it("the identity carries only the identifier and the name", async () => {
-    const check = sessionCheck({ user: () => ({ id: "u-2", email: "x@example.com" }), may: () => true, signIn: "/in" });
+    const check = sessionCheck({ user: () => ({ id: "u-2", email: "x@example.com" }), may: () => true });
     expect(await check({ request: new Request(`${ORIGIN}/`), operation: "read" })).toEqual({ identity: { id: "u-2" } });
   });
 
   it("a user who may not is forbidden", async () => {
-    const check = sessionCheck({ user: () => editor, may: () => false, signIn: "/in" });
+    const check = sessionCheck({ user: () => editor, may: () => false });
     expect(await check({ request: new Request(`${ORIGIN}/`), operation: "write" })).toBe("forbidden");
   });
 
   it("may is given the user and the operation", async () => {
     const seen: unknown[] = [];
-    const check = sessionCheck({ user: () => editor, may: (user, { operation }) => (seen.push([user.id, operation]), true), signIn: "/in" });
+    const check = sessionCheck({ user: () => editor, may: (user, { operation }) => (seen.push([user.id, operation]), true) });
     await check({ request: new Request(`${ORIGIN}/`), operation: "write" });
     expect(seen).toEqual([["u-1", "write"]]);
   });
 
   it("a user without an identifier is not authenticated", async () => {
-    const check = sessionCheck({ user: () => ({ id: "" }), may: () => true, signIn: "/in" });
+    const check = sessionCheck({ user: () => ({ id: "" }), may: () => true });
     expect(await check({ request: new Request(`${ORIGIN}/`), operation: "read" })).toBe(false);
   });
 });

@@ -21,13 +21,8 @@ export const HELP_TEXT_MAX_LENGTH = 200;
  * that the website refused.
  */
 export interface SignInDescriptor {
-  /** The website accepts a session from its login for Editors. */
-  session?: {
-    /** Where an Editor signs in. An absolute `http` or `https` address. */
-    signIn: string;
-    /** Requests must include credentials, because the session cookie travels to another origin of the same site. */
-    credentials?: boolean;
-  };
+  /** Requests must include credentials, because the session cookie travels to another origin of the same site. */
+  credentials?: boolean;
   /** Where a workbench addon signs in by pairing. */
   pair?: { address: string };
   /** The website's own words for someone who is not signed in. Plain text, to be shown as text only. */
@@ -58,16 +53,14 @@ export function readHelpText(value: unknown): string | undefined {
 /**
  * The sign-in descriptor in a refusal body, validated and rebuilt, or
  * `undefined` when the body carries none. A member that is not valid is
- * dropped, never repaired: an address must be `http` or `https`, and a help
- * text must be within its limits.
+ * dropped, never repaired: credentials must be a boolean, an address must be
+ * `http` or `https`, and a help text must be within its limits.
  */
 export function readSignInDescriptor(body: unknown): SignInDescriptor | undefined {
   if (!isRecord(body) || !isRecord(body.auth)) return undefined;
-  const { session, pair, help } = body.auth;
+  const { credentials, pair, help } = body.auth;
   const descriptor: SignInDescriptor = {};
-  if (isRecord(session) && typeof session.signIn === "string" && isHttpUrl(session.signIn)) {
-    descriptor.session = typeof session.credentials === "boolean" ? { signIn: session.signIn, credentials: session.credentials } : { signIn: session.signIn };
-  }
+  if (typeof credentials === "boolean") descriptor.credentials = credentials;
   if (isRecord(pair) && typeof pair.address === "string" && isHttpUrl(pair.address)) descriptor.pair = { address: pair.address };
   const text = readHelpText(help);
   if (text !== undefined) descriptor.help = text;

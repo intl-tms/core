@@ -49,7 +49,6 @@ function website(overrides: Partial<PairingOptions<User>> = {}) {
   const authorize = sessionCheck<User>({
     user: async (request) => (await pairing.user(request)) ?? (sessionOf(request) === undefined ? undefined : structuredClone(accounts.get(sessionOf(request)!)!.user)),
     may: (user) => user.roles.includes("Editor"),
-    signIn: "/editors/sign-in",
     help: { forbidden: "Ask IT for the Editor role." },
   });
   const site = setup({ authorize, pairing, cors: { origins: [WORKBENCH] } });
