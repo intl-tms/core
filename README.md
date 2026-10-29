@@ -2,10 +2,9 @@
 
 > [!WARNING]
 > **Under active development. Do not use in production.**
-> The API can change between any two releases. The Core ships no
-> authentication: every request is allowed or denied only by the `authorize`
-> function you write, and the demo app allows anyone to edit while editing is
-> switched on.
+> The API can change between any two releases. The Core is not an identity
+> provider: every request is allowed or denied by the `authorize` check you
+> build, from your own login for Editors.
 
 Documentation: <https://intl-tms.github.io/docs/>
 
@@ -39,7 +38,7 @@ Three steps: describe the setup, mark the Catalog, serve the endpoints.
 
 <!-- quickstart:start -->
 ```ts
-import { createHandler, createMemoryAdapter, markCatalog, resolveConfig } from "@intl-tms/core";
+import { createHandler, createMemoryAdapter, isEditingRequest, markCatalog, resolveConfig, sessionCheck } from "@intl-tms/core";
 
 // 1. Describe your setup. Locales and one absolute base path are a complete,
 //    working configuration. Mistakes throw here, at boot, naming the value.
@@ -49,20 +48,37 @@ export const config = resolveConfig({
   sourceLocale: "en",
 });
 
-// 2. Mark the merged message Catalog, for editing sessions only. Your i18n
-//    library then formats marked strings as if they were plain.
-export function messagesFor(catalog: Record<string, unknown>, isEditingSession: boolean) {
-  return isEditingSession ? markCatalog(catalog) : catalog;
+// 2. Say who may edit: someone signed in to your login for Editors who holds
+//    the Editor role. Nobody signed in gets 401 and the sign-in address;
+//    someone without the role gets 403 and your help text.
+export const authorize = sessionCheck({
+  user: (request) => findEditorSession(request),
+  may: (user) => user.roles.includes("Editor"),
+  signIn: "/editors/sign-in",
+  help: { forbidden: "Ask IT for the Editor role." },
+});
+
+// 3. Mark the merged message Catalog, for Editors only. Your i18n library then
+//    formats marked strings as if they were plain.
+export async function messagesFor(catalog: Record<string, unknown>, request: Request) {
+  return (await isEditingRequest(request, authorize)) ? markCatalog(catalog) : catalog;
 }
 
-// 3. Serve the endpoints. The handler is one function from a web Request to a
+// 4. Serve the endpoints. The handler is one function from a web Request to a
 //    web Response, so mounting it is a re-export on any modern framework.
-const EDITOR_TOKEN = "replace-me"; // your real check goes here: a session, a role
 export const handler = createHandler({
   config,
   adapter: createMemoryAdapter(), // for tests and spikes only: write your own
-  authorize: ({ request }) => request.headers.get("x-editor-token") === EDITOR_TOKEN,
+  authorize,
 });
+
+// Your authentication library's session lookup for the Editors' login goes
+// here, never a customer login's. This stand-in knows one session.
+const sessions = new Map([["s-1", { id: "u-1", name: "Ada", roles: ["Editor"] }]]);
+function findEditorSession(request: Request) {
+  const id = /(?:^|;\s*)editor-session=([^;]+)/.exec(request.headers.get("cookie") ?? "")?.[1];
+  return id === undefined ? undefined : sessions.get(id);
+}
 ```
 <!-- quickstart:end -->
 
@@ -129,8 +145,8 @@ endpoints the website serves.
 | Option | Meaning |
 | --- | --- |
 | `config` | Required. The configuration endpoint's address, used exactly as written, or a resolved configuration object. |
-| `request` | How requests are made; defaults to `fetch`. Add a token header here, or call a handler directly: `(url, init) => handler(new Request(url, init))` needs no server. |
-| `credentials` | `"include"` sends the website's cookies from Storybook's origin. |
+| `request` | How requests are made; defaults to `fetch`. Call a handler directly, `(url, init) => handler(new Request(url, init))`, and no server is needed. The editing token is added to what it is given. |
+| `signInView` | `(element, { state, signIn, signOut, onChange }) => cleanup`: draws the panel's sign-in area your way. Without it the addon shows its own line. |
 | `locale` | `(context) => string`, the Locale a story is rendered in. Defaults to the `locale` global, then `<html lang>`, then the Source Locale. |
 | `editing` | Start switched on. Defaults to off. |
 | `placement` | `"right"` (default), `"left"` or `"bottom"`. |
@@ -139,10 +155,37 @@ endpoints the website serves.
 
 Things to know:
 
-- **Storybook is another origin.** List it in the handler's cross-origin policy,
-  `cors: { origins: ["http://localhost:6006"] }`, or writes are refused with
-  `403` and reads are blocked by the browser. `authorize` still decides who may
-  read and write: give the addon a `request` that carries what it checks.
+- **Editors sign in through a pop-up on your website's login.** Storybook is
+  usually published on another site, where your session cookie does not
+  travel, so it never uses the cookie, also on `localhost`. The panel shows
+  **Sign in**; the pop-up signs the Editor in with your login for Editors and
+  hands Storybook a one-time code, which it exchanges for an editing token kept
+  in that browser tab only. The token lives as long as a session (10 hours
+  from sign-in, re-checked every hour) and your `authorize` judges its user
+  like a session's. Set it up on the website:
+
+  ```ts
+  import { createHandler, createPairing, sessionCheck } from "@intl-tms/core";
+
+  const pairing = createPairing({
+    store: pairingStore, // save, find, update, delete, deleteAllOf: in your database
+    signIn: (returnTo) => `/editors/sign-in?return=${encodeURIComponent(returnTo)}`,
+    session: (request) => editorSessions.forPairing(request), // { user, grant, signedInAt }
+    recheck: (user, grant) => identityProvider.recheck(user, grant),
+  });
+  const authorize = sessionCheck({
+    user: async (request) => (await pairing.user(request)) ?? editorSessions.user(request),
+    may: (user) => user.roles.includes("Editor"),
+    signIn: "/editors/sign-in",
+  });
+  export const handler = createHandler({ config, adapter, authorize, pairing, cors: { origins: ["http://localhost:6006"] } });
+  ```
+
+  List every Storybook origin in `cors.origins`: the pop-up hands a code to no
+  other origin. Call `pairing.endAllOf(id)` when an Editor signs out on the
+  website and in your emergency stop.
+- **A published Storybook may be public.** Without a token it cannot read
+  stored values or save.
 - **Off means off here too.** With the switch off, `tms.mark` returns the very
   same Catalog, and no request, element or stylesheet is created.
 - **A story shows what the store holds, not only what Storybook bundled.** While
@@ -175,10 +218,15 @@ expect(report.failures).toEqual([]);
 
 | Operation | Contract |
 | --- | --- |
-| `getValues(key)` | Every stored Locale for the key. **Sparse**: a Locale with no row is absent. Empty when nothing is stored. |
-| `saveValue(key, write)` | Upsert one (key, Locale) as a **partial merge** of the supplied columns. A new row starts with an empty `value`. An empty string is a real value. Use `writePatch(write)`; an empty patch means do nothing. |
-| `getUsage(key)` | A key's usages, most recently seen first. Empty when none. |
-| `reportUsage(report)` | Upsert each (key, URL), overwriting count and last-seen. **Never prune.** |
+| `getValues(key, context)` | Every stored Locale for the key. **Sparse**: a Locale with no row is absent. Empty when nothing is stored. |
+| `saveValue(key, write, context)` | Upsert one (key, Locale) as a **partial merge** of the supplied columns. A new row starts with an empty `value`. An empty string is a real value. Use `writePatch(write)`; an empty patch means do nothing. |
+| `getUsage(key, context)` | A key's usages, most recently seen first. Empty when none. |
+| `reportUsage(report, context)` | Upsert each (key, URL), overwriting count and last-seen. **Never prune.** |
+
+`context.identity` is who your `authorize` check said the caller is
+(`{ id, name? }`), so your adapter can store who made each change. The Core
+only passes it on and records nothing itself. Leave the parameter out if you do
+not need it.
 
 An adapter typed for one configuration is a compile error to hand to a handler
 built for another; an untyped adapter fits any configuration.
@@ -190,7 +238,7 @@ so a key named `config` or `usage` is still just a key.
 
 | Method | Path | Operation | Answers |
 | --- | --- | --- | --- |
-| GET | `/config` | read | The resolved configuration |
+| GET | `/config` | read | The resolved configuration, plus `access: { name?, write }` for this caller |
 | GET | `/keys/{key}` | read | `{ meta?, locales }`, with only the Locales that have a stored row |
 | PUT | `/keys/{key}` | write | One Locale's partial write; `{ ok: true }` |
 | POST | `/usage` | write | One page's sightings; `{ ok: true, count }` |
@@ -202,9 +250,20 @@ stored value differs from what was expected **and** from what is being written
 answers `409 { error: "conflict", current }` and nothing is written.
 
 Every error is `{ error, code }`. Statuses: `400` invalid body or path, `401`
-authorization denied, `403` origin not allowed, `404` no such route, `405` wrong method (with `Allow`),
+not authenticated, `403` not permitted (code `forbidden`) or origin not allowed
+(code `forbidden-origin`), `404` no such route, `405` wrong method (with `Allow`),
 `409` write conflict, `415` write not sent as JSON, `500` fixed generic body. The real cause of a 500 goes to
 your `onError` hook, never to the response.
+
+A `401` also says how to sign in, and a `403` may carry your help text:
+
+```json
+{ "error": "unauthorized", "code": "unauthorized", "auth": { "session": { "signIn": "https://app.example.com/editors/sign-in" }, "help": "Sign in with your company account." } }
+{ "error": "forbidden", "code": "forbidden", "help": "Ask IT for the Editor role." }
+```
+
+What a refusal says is fixed when the handler is built and never depends on the
+caller. A hand-written check declares nothing, so its `401` carries `auth: {}`.
 
 ## Security
 
@@ -214,9 +273,26 @@ your `onError` hook, never to the response.
   switch that tells your website to mark its Catalog. Anyone can set a cookie.
   Protection lives in `authorize`, never in the Toggle.
 - **`authorize` is required and has no default.** It receives the request and the
-  operation (`read` for GET, `write` for PUT and POST) and must answer `true`
-  to allow. Anything else, including `undefined`, denies. It is *not* consulted
-  for a CORS preflight, because a preflight carries no credentials.
+  operation (`read` for GET, `write` for PUT and POST). It answers `true` or
+  `{ identity }` to allow, `"forbidden"` for someone signed in who may not
+  (`403`). Anything else, including `false` and `undefined`, is not
+  authenticated (`401`). It is *not* consulted for a CORS preflight, because a
+  preflight carries no credentials.
+- **Editors sign in with a login of their own.** Build the check with
+  `sessionCheck` over your authentication library's session for a login for
+  Editors only, with your organisation's identity provider, so IT grants and
+  withdraws the Editor role. Never use a customer login for editing: give the
+  Editors' login its own sign-in address, cookie and session settings. End an
+  Editor's session 10 hours after sign-in and check the role with the identity
+  provider again at least every hour.
+- **Keep the endpoints on the same site as your pages.** Browsers do not send a
+  session cookie to another site.
+- **Mark pages only for Editors.** `isEditingRequest(request, authorize)` marks
+  only when the Toggle is set and the Editors' session may read, so a visitor
+  who sets the Toggle gets unmarked pages.
+- **`anyOf(...checks)`** composes checks: the first that allows wins.
+  **`allowAll(condition)`** allows everything while `condition` is true, for
+  local development only, and warns when it does.
 - **The configuration endpoint publishes every other endpoint by design.**
   Anyone who may read it learns where everything is.
 - **Deny writes to anyone who may not translate.** Gate reads too, unless your
@@ -288,6 +364,8 @@ consume them, so pin an exact version if you build on them.
 | Usage helpers | `normalizeUrl`, `usageSignature` |
 | Storage | `createMemoryAdapter`, `detectAdapterCapabilities`, `runAdapterConformance` |
 | Handler | `createHandler` |
+| Authorization | `sessionCheck`, `anyOf`, `allowAll`, `isEditingRequest`, `HELP_TEXT_MAX_LENGTH` |
+| Pairing (Storybook sign-in) | `createPairing`, `createMemoryPairingStore`, `EDITING_TOKEN_HEADER`, `EDITING_TOKEN_PREFIX`, `EDITING_TOKEN_LIFETIME_MS`, `EDITING_TOKEN_RECHECK_MS`, `PAIRING_CODE_LIFETIME_MS`, `PAIRING_TEXT` |
 
 ### `@intl-tms/core/tools` (editing tools)
 
@@ -300,6 +378,7 @@ consume them, so pin an exact version if you build on them.
 | Client | `createClient`, `DEFAULT_TIME_LIMIT_MS`, `USAGE_COOLDOWN_MS` |
 | Locale | `resolveLocale` |
 | Usage helpers | `aggregateUsage`, `isHttpUrl` |
+| Signing in | `readSignInDescriptor`, `readHelpText`, `isHelpText`, `HELP_TEXT_MAX_LENGTH` |
 | Panel store | `createPanelStore` |
 | Panel logic | `buildChanges`, `changedColumns`, `shouldRenderToolbar`, `resolveToolbarFilters`, `visibleLocales`, `hiddenErrors`, `usagePath`, `relativeTime`, `conflictNotice`, `explainSaveFailure`, `fieldText`, `PANEL_TEXT` |
 | Shared rule | `isSharedKey`, `SHARED_NOTICE` |
@@ -308,7 +387,7 @@ consume them, so pin an exact version if you build on them.
 
 | Group | Exports |
 | --- | --- |
-| Addon | `createStorybookAddon`, `EDIT_GLOBAL`, `STORYBOOK_TEXT` |
+| Addon | `createStorybookAddon`, `EDIT_GLOBAL`, `STORYBOOK_TEXT`, `SIGN_IN_TEXT` |
 | Built-in panel | `createPanelView`, `createLog`, `PANEL_CSS`, `PANEL_VIEW_TEXT` |
 
 `createPanelView` is the addon's panel on its own: plain DOM over
@@ -348,7 +427,7 @@ configuration is a compile error. Reserved Field names (`value`, `locale`,
 ## Not built yet
 
 The baseline is complete. These improvements are specified but deliberately left
-for later: lazy and excluded Catalog marking, the gate helper, batch writes,
+for later: lazy and excluded Catalog marking, batch writes,
 atomic conflicts, size limits on bodies, keys and values, incremental and time-sliced scanning, bulk read and prefetch,
 request cancellation, server-side message guards, rate limits, the diagnostics
 endpoint, localisable panel text, undo, per-row save state, and real-browser

@@ -445,3 +445,124 @@ rule of building only those a milestone lists:
   with the `[intl-tms]` prefix.
 - **Verified in a real browser** against Storybook 10.6 (`@storybook/nextjs-vite`)
   in the demo app; the automated tests run in a simulated DOM.
+
+## Editors sign in (A1)
+
+- **The check's answer** is `true` or `{ identity }` to allow, `"forbidden"`
+  for someone signed in who may not (`403`, code `forbidden`), and anything
+  else not authenticated (`401`). A string rather than a helper function, so a
+  hand-written check needs no import. An identity without a non-empty string
+  `id` is not an identity, and the answer falls back to not authenticated.
+- **What a refusal says is declared on the check**, as a `declares` property
+  of the function, not passed to `createHandler`. A hand-written function has
+  none, so its `401` carries `auth: {}`. The handler builds both refusal bodies
+  once, when it is built, so they cannot depend on the caller.
+- **A path as the sign-in address** is resolved against the origin of the base
+  path when the handler is built, so tools always receive an absolute address.
+  `//host` is refused: it looks like a path and is another origin.
+- **Help texts** are refused at boot unless they are non-empty, at most 200
+  characters, and free of every C0 and C1 control character and the Unicode
+  line and paragraph separators. Tools apply the same rule on receipt and drop
+  a text that fails it instead of shortening it.
+- **`sessionCheck({ user, may, signIn, credentials?, help? })`.** `user`
+  returns an object with at least `id` (and optionally `name`), so the
+  Developer's own user type flows into `may`. Only `id` and `name` become the
+  identity: roles and e-mail addresses are not passed to storage.
+- **`anyOf` asks its checks in order** and stops at the first allow. Its
+  declaration takes each member (session, each help text) from the first check
+  that declares it.
+- **`allowAll(condition)`** warns with `console.warn` when it is built with
+  `true`, not on each request.
+- **The configuration's `access`** is `{ name?, write }`. Whether the caller
+  may write is found by asking the check a second time, with the same request
+  and the operation `write`. The configuration route therefore calls the check
+  twice; a check must not read the body anyway.
+- **The storage context is the last, optional parameter** of every adapter
+  operation: `{ identity? }`. Optional so code that calls an adapter directly,
+  and adapters that do not care, need no change. The handler always passes it,
+  `{}` for a caller allowed without an identity. The conformance run passes an
+  identity of its own, so an adapter that stores a change's author is run the
+  way it is served.
+- **The gate helper is `isEditingRequest(request, check?)`**, always
+  asynchronous. It reads the Toggle from the `Cookie` header by exact name, and
+  with a check marks only when the check allows reading. A check that throws
+  marks nothing. Asking the check costs a session lookup per page request, the
+  same lookup the endpoints make.
+- **Client refusals.** A `401` failure carries `auth`, the validated
+  descriptor, and a `403` failure carries `help`; a save result carries the
+  same two members per Locale. A descriptor on any other status is ignored. A
+  member that fails validation is dropped: a session whose sign-in address is
+  not `http` or `https`, a pairing address likewise, a non-boolean
+  `credentials`, an invalid help text.
+- **The protocol version stays.** Everything added is a member an older tool
+  ignores, and an older tool already reports any `401` as not signed in.
+
+## The workbench signs in (AP)
+
+- **Pairing is a value handed to `createHandler`**, from
+  `createPairing({ store, signIn, session, recheck })`. The handler then serves
+  `{basePath}/pair`, `/pair/token` and `/pair/end`, and every `401` names the
+  pairing address. These three routes are served without asking the check
+  first; the pop-up asks it itself (with the operation `write`, since a token
+  is for editing), and the exchange and sign-out need no session. Pairing with
+  an empty `cors.origins` throws at boot: no workbench could ever be handed a
+  code.
+- **A token's user is judged by the Developer's own check.** `pairing.user(request)`
+  returns the Developer's user object for a valid token, and the website's
+  `sessionCheck` reads it before the session:
+  `user: (r) => pairing.user(r) ?? session(r)`. The Editor role and the
+  editing switch therefore apply to tokens exactly as to sessions, and nothing
+  about roles is in the Core. The record keeps that user as JSON, and
+  `recheck(user, grant)` returns it as it is now.
+- **What the pop-up's session gives** is `{ user, grant, signedInAt, checkedAt? }`
+  from the Developer's `session(request)`. The grant is what the identity
+  provider needs to check the user again (a refresh token), and `signedInAt`
+  makes a token end 10 hours after the sign-in it came from, not after the
+  pairing. `checkedAt` carries over when the session last checked, so the hour
+  is not restarted by pairing.
+- **Codes live in the same store as tokens**, with `kind: "code"`, so pairing
+  works across several servers. `delete(digest)` answers whether the record
+  was there, which makes a code usable once even when two exchanges race. The
+  exchange deletes the code before it checks the proof, so a wrong proof uses
+  the code up. A code never exchanged stays until it is found or the store
+  removes records past `endsAt`, which the store may do at any time.
+- **The challenge is the SHA-256 of the proof's text**, URL-safe base64
+  without padding, as in OAuth's PKCE. The exchange must come from the origin
+  the code was handed to.
+- **The pop-up page** is the Core's: a fixed English page (`PAIRING_TEXT`)
+  whose one script, allowed by a per-response nonce, posts the message to the
+  exact listed origin and closes the window. It is never cached, sends no
+  referrer and cannot be framed. It reaches the window through `opener` and
+  `close` because the module is server code. A website whose own content
+  security policy is added to this response must allow it, and a page served
+  with `Cross-Origin-Opener-Policy: same-origin` cuts the pop-up off from the
+  workbench (the pop-up then says so).
+- **A refusal in the pop-up is posted too**, as `{ refused: "forbidden", help? }`,
+  so the panel can say the Editor may not edit. It carries nothing secret.
+- **The token header is `tms-editing-token`**, and tokens start with `tmset_`.
+  The request handed to `onError` has the header removed.
+- **The addon opens the pop-up empty, inside the click**, and sends it to the
+  pairing address once the challenge is computed: the digest is asynchronous,
+  and anything awaited before `window.open` gets the pop-up blocked. A window
+  message counts only from that pop-up and from the pairing address's origin.
+  Closing the pop-up without signing in goes back to the state before.
+- **The token is sent only to the pairing address's origin**, in this tab's
+  session storage, and never written anywhere else.
+- **The sign-in area shows once the website has said it offers pairing** (a
+  `401` naming a pairing address) or a token is held. A `401` for the
+  configuration is then not a failure: no notice, no log entry, and the
+  Diagnostics pane does not open; the sign-in line says it. A website without
+  pairing still gets the notice it got before.
+- **The sign-in view is drawn and removed just after the decorator runs**, in
+  a microtask: the decorator runs while the workbench renders a story, and
+  React refuses to render another root in the middle of that.
+- **A closed pop-up is given one more poll** (half a second) before signing
+  in is given up, because the pop-up closes right after posting its message.
+- **`credentials` is no longer an addon option.** Decision 9 makes pairing the
+  only way a workbench signs in, also on `localhost`.
+- **A sign-in view that throws** when drawn, or when told a change, is removed
+  and the addon's own line takes its place, with the error in the log. An
+  error React throws while rendering asynchronously is React's to report: it
+  does not reach the addon.
+- **Not built:** the pop-up's words are English only, and a Storybook manager
+  panel still is not built.

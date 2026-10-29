@@ -17,6 +17,7 @@ import { createPanelView, type PanelView } from "./panel-view.js";
 import { createSession } from "./session.js";
 import { isHttpUrl } from "./usage.js";
 import type { SaveOutcome } from "./wire.js";
+import { builtInSignInView, createWorkbenchSignIn, type SignInControls, type SignInView, type WorkbenchSignIn } from "./workbench-sign-in.js";
 
 /** The name of the workbench global that holds the edit-mode switch. Its value is `"on"` or `"off"`. */
 export const EDIT_GLOBAL = "tmsEdit";
@@ -67,13 +68,19 @@ export interface StorybookAddonOptions {
    */
   config: string | StorybookConfig;
   /**
-   * How requests are made. Defaults to the platform's `fetch`. This is where a
-   * token header goes, and where a request handler can be called directly so a
-   * workbench needs no server at all.
+   * How requests are made. Defaults to the platform's `fetch`. A request
+   * handler can be called directly here, so a workbench needs no server at
+   * all. The editing token is added to what this is given, for requests to
+   * the website only.
    */
   request?: RequestFn;
-  /** `include` sends the website's cookies from the workbench's origin, which the website must allow in its cross-origin policy. */
-  credentials?: RequestCredentials;
+  /**
+   * Draws the sign-in area of the panel: given an empty element and the
+   * sign-in's state and actions, it returns a function that cleans up.
+   * Without one, the addon shows its own sign-in line. Signing in always goes
+   * through the website's pop-up.
+   */
+  signInView?: SignInView;
   /** The time limit of every request, the configuration fetch included. */
   timeoutMs?: number;
   /**
@@ -139,12 +146,19 @@ export interface StorybookAddon {
 /** How many keys' stored values are read at once. A story can hold hundreds of keys and each is one request. */
 export const STORED_READ_LIMIT = 6;
 
-type ConfigLoad = { ok: true; config: StorybookConfig } | { ok: false; reason: string };
+type ConfigLoad = { ok: true; config: StorybookConfig } | { ok: false; reason: string; unauthenticated?: boolean };
 
 const TAG = "[intl-tms]";
 const HOST_ATTRIBUTE = "data-tms-panel";
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** The Editor's name a served configuration gives, when it gives one as text. */
+function nameIn(config: unknown): string | undefined {
+  if (!isObject(config) || !isObject(config.access)) return undefined;
+  const name = config.access.name;
+  return typeof name === "string" && name !== "" ? name : undefined;
+}
 
 /** Whether a parsed response has the shape of a served configuration. */
 function isConfiguration(value: unknown): value is StorybookConfig & { protocol?: unknown } {
@@ -174,8 +188,11 @@ function isConfiguration(value: unknown): value is StorybookConfig & { protocol?
  */
 export function createStorybookAddon(options: StorybookAddonOptions): StorybookAddon {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIME_LIMIT_MS;
-  const request: RequestFn = options.request ?? ((url, init) => fetch(url, init));
-  const credentials = options.credentials === undefined ? {} : { credentials: options.credentials };
+  const base: RequestFn = options.request ?? ((url, init) => fetch(url, init));
+  /** Created with the first document, because it needs the workbench's window. */
+  let signIn: WorkbenchSignIn | undefined;
+  // Every request goes through the sign-in, which adds the token for the website and notices refusals.
+  const request: RequestFn = (url, init) => (signIn?.request ?? base)(url, init);
   const source = typeof options.config === "string" ? options.config : undefined;
 
   let config: StorybookConfig | undefined = typeof options.config === "string" ? undefined : options.config;
@@ -204,7 +221,7 @@ export function createStorybookAddon(options: StorybookAddonOptions): StorybookA
     if (values === undefined) map.set(name, (values = new Map()));
     return values;
   };
-  let running: { document: Document; host: HTMLElement; view: PanelView } | undefined;
+  let running: { document: Document; host: HTMLElement; view: PanelView; signInArea: HTMLElement; unmountSignIn: () => void } | undefined;
   const notices: { config?: string; save?: string } = {};
 
   const isEditing = (story: StorybookContext): boolean => story.globals?.[EDIT_GLOBAL] === "on";
@@ -222,7 +239,7 @@ export function createStorybookAddon(options: StorybookAddonOptions): StorybookA
     running?.view.setNotice(text === "" ? undefined : text);
   }
 
-  const client = createClient({ getConfig: () => config, request, timeoutMs, ...credentials });
+  const client = createClient({ getConfig: () => config, request, timeoutMs });
 
   const session = createSession({
     client,
@@ -357,8 +374,8 @@ export function createStorybookAddon(options: StorybookAddonOptions): StorybookA
     });
     const attempt = async (): Promise<ConfigLoad> => {
       // The address is used verbatim: nothing is appended, nothing is defaulted.
-      const response = await request(address, { signal: controller.signal, headers: { accept: "application/json" }, ...credentials });
-      if (!response.ok) return { ok: false, reason: STORYBOOK_TEXT.status(response.status) };
+      const response = await request(address, { signal: controller.signal, headers: { accept: "application/json" } });
+      if (!response.ok) return { ok: false, reason: STORYBOOK_TEXT.status(response.status), ...(response.status === 401 ? { unauthenticated: true } : {}) };
       let parsed: unknown;
       try {
         parsed = JSON.parse(await response.text());
@@ -386,11 +403,15 @@ export function createStorybookAddon(options: StorybookAddonOptions): StorybookA
       if (loaded.ok) {
         config = loaded.config;
         notices.config = undefined;
+        signIn?.setName(nameIn(loaded.config));
         if (running !== undefined) {
           running.view.setConfig(config);
           // Colours and scan attributes come from the configuration: scan again with them.
           session.start(running.document);
         }
+      } else if (loaded.unauthenticated === true && signIn?.available() === true) {
+        // Not signed in, on a website the Editor can sign in to: the sign-in line says so, and
+        // nothing has failed.
       } else {
         notices.config = STORYBOOK_TEXT.configFailed(loaded.reason);
         running?.view.logFailure("config", "FAILED", `${address}\n${loaded.reason}`);
@@ -400,7 +421,78 @@ export function createStorybookAddon(options: StorybookAddonOptions): StorybookA
     });
   }
 
-  function mount(document: Document): { host: HTMLElement; view: PanelView } {
+  /** Reads again what could not be read before the Editor signed in. */
+  function signedIn(): void {
+    if (source !== undefined && config === undefined) {
+      loading = undefined;
+      notices.config = undefined;
+      showNotices();
+      loadConfig(source);
+    }
+    for (const key of failed) asked.delete(key);
+    failed.clear();
+    if (running !== undefined && config !== undefined) session.start(running.document);
+  }
+
+  /**
+   * Draws the sign-in area: the Developer's view, or the addon's own line. A
+   * view that throws, when drawn or when told a change, is removed and the
+   * addon's line takes its place; the error goes to the panel's log.
+   */
+  function mountSignIn(area: HTMLElement, view: PanelView, current: WorkbenchSignIn): () => void {
+    const custom = options.signInView;
+    if (custom === undefined) return builtInSignInView(area, current.controls());
+    const controls = current.controls();
+    const stops: (() => void)[] = [];
+    let cleanup: (() => void) | void;
+    let replaced: (() => void) | undefined;
+    const contain = (error: unknown): void => {
+      if (replaced !== undefined) return;
+      for (const stop of stops.splice(0)) stop();
+      try {
+        cleanup?.();
+      } catch {
+        // Already being replaced.
+      }
+      area.replaceChildren();
+      view.logFailure("sign-in", "THREW", error instanceof Error ? (error.stack ?? error.message) : String(error));
+      replaced = builtInSignInView(area, current.controls());
+    };
+    const guarded: SignInControls = {
+      state: controls.state,
+      signIn: controls.signIn,
+      signOut: controls.signOut,
+      onChange(listener) {
+        const stop = controls.onChange((state) => {
+          if (replaced !== undefined) return;
+          try {
+            listener(state);
+          } catch (error) {
+            contain(error);
+          }
+        });
+        stops.push(stop);
+        return stop;
+      },
+    };
+    try {
+      cleanup = custom(area, guarded);
+    } catch (error) {
+      contain(error);
+    }
+    return () => {
+      if (replaced !== undefined) return replaced();
+      for (const stop of stops.splice(0)) stop();
+      try {
+        cleanup?.();
+      } catch {
+        // The view is going away either way.
+      }
+      area.replaceChildren();
+    };
+  }
+
+  function mount(document: Document): { host: HTMLElement; view: PanelView; signInArea: HTMLElement } {
     const host = document.createElement("div");
     host.setAttribute(HOST_ATTRIBUTE, "");
     host.setAttribute("data-tms-placement", options.placement ?? "right");
@@ -428,9 +520,16 @@ export function createStorybookAddon(options: StorybookAddonOptions): StorybookA
     }).observe(host, { attributes: true, attributeFilter: ["data-tms-collapsed"] });
     bar.append(name, toggle);
 
+    // The sign-in area is the Developer's to draw, or the addon's own line. It shows once the
+    // website has said it offers signing in from a workbench.
+    const signInArea = document.createElement("div");
+    signInArea.className = "sign-in";
+    signInArea.dataset.role = "sign-in";
+    signInArea.hidden = true;
+
     const container = document.createElement("div");
     container.className = "panel";
-    root.append(style, bar, container);
+    root.append(style, bar, signInArea, container);
 
     // The workbench listens for single-key shortcuts on the document, and from
     // outside a shadow root a keystroke looks like it came from a plain element.
@@ -447,13 +546,35 @@ export function createStorybookAddon(options: StorybookAddonOptions): StorybookA
       openHidden: (id) => session.openHidden(id),
     });
     document.body.append(host);
-    return { host, view };
+    return { host, view, signInArea };
   }
 
   function start(document: Document): void {
     if (running?.document === document && running.host.isConnected) return;
     stop();
-    running = { document, ...mount(document) };
+    const window = document.defaultView;
+    if (signIn === undefined && window !== null) {
+      signIn = createWorkbenchSignIn({
+        window,
+        request: base,
+        onSignedIn: signedIn,
+        onChange: () => {
+          if (running !== undefined) running.signInArea.hidden = signIn?.available() !== true;
+        },
+      });
+    }
+    const mounted = mount(document);
+    mounted.signInArea.hidden = signIn?.available() !== true;
+    const current = { document, ...mounted, unmountSignIn: (): void => undefined };
+    running = current;
+    // The decorator runs while the workbench renders a story. A view library must not render
+    // into another root in the middle of that, so the sign-in view is drawn just after.
+    const ready = signIn;
+    if (ready !== undefined) {
+      queueMicrotask(() => {
+        if (running === current) current.unmountSignIn = mountSignIn(current.signInArea, current.view, ready);
+      });
+    }
     if (config !== undefined) running.view.setConfig(config);
     showNotices();
     session.start(document);
@@ -463,6 +584,8 @@ export function createStorybookAddon(options: StorybookAddonOptions): StorybookA
   function stop(): void {
     if (running === undefined) return;
     session.stop();
+    // Removed just after the render that switched editing off, for the same reason it is drawn then.
+    queueMicrotask(running.unmountSignIn);
     running.host.remove();
     running = undefined;
     lastFound = [];

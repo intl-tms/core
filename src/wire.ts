@@ -2,6 +2,7 @@
 // the two pure helpers every layer shares.
 
 import type { LocaleOf, OpenRow, WritableRowOf } from "./config.js";
+import type { SignInDescriptor } from "./sign-in.js";
 
 /** A source location a key is referenced from. */
 export interface KeyReference {
@@ -117,6 +118,10 @@ export interface LocaleSaveResult {
   /** The stored row, when the failure was a Write conflict. */
   current?: WireRow;
   failure?: FailureClass;
+  /** How to sign in, when the save was refused as not authenticated. */
+  auth?: SignInDescriptor;
+  /** The website's help text, when the save was refused as not permitted. */
+  help?: string;
 }
 
 /** The outcome of saving several Locales of one key. */

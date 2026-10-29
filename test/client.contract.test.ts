@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Authorize } from "../src/auth.js";
 import { createClient, type RequestFn } from "../src/client.js";
 import { resolveConfig } from "../src/config.js";
 import { createHandler } from "../src/handler.js";
@@ -12,7 +13,7 @@ const config = resolveConfig({
 });
 
 /** The client and the handler, joined by an in-process request function: no network. */
-function wire(options: { authorize?: () => boolean; sourceMessage?: string } = {}) {
+function wire(options: { authorize?: Authorize; sourceMessage?: string } = {}) {
   let tick = 0;
   const adapter = createMemoryAdapter<typeof config>({ clock: () => (tick += 1000) });
   const handler = createHandler({
@@ -67,7 +68,12 @@ describe("client against the real handler", () => {
   });
 
   it("an unauthorized read is classified with its reason", async () => {
-    expect((await wire({ authorize: () => false }).client.readValues("k")).failure).toEqual({ class: "unauthenticated", status: 401, reason: "unauthorized" });
+    expect((await wire({ authorize: () => false }).client.readValues("k")).failure).toEqual({ class: "unauthenticated", status: 401, reason: "unauthorized", auth: {} });
+  });
+
+  it("a forbidden read is classified with the website's help text", async () => {
+    const authorize = Object.assign(() => "forbidden" as const, { declares: { help: { forbidden: "Ask IT." } } });
+    expect((await wire({ authorize }).client.readValues("k")).failure).toEqual({ class: "forbidden", status: 403, reason: "forbidden", help: "Ask IT." });
   });
 
   it("a write whose expected values are stale comes back as a conflict carrying the stored row", async () => {

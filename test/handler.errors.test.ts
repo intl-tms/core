@@ -13,7 +13,7 @@ describe("authorization", () => {
   });
 
   it("the 401 body carries a reason and a stable code", async () => {
-    expect((await setup({ authorize: () => false }).call("GET", `${MOUNT}/config`)).body).toEqual({ error: "unauthorized", code: "unauthorized" });
+    expect((await setup({ authorize: () => false }).call("GET", `${MOUNT}/config`)).body).toEqual({ error: "unauthorized", code: "unauthorized", auth: {} });
   });
 
   it("a check that returns anything but true denies", async () => {
@@ -22,7 +22,7 @@ describe("authorization", () => {
 
   it("H21: a GET gives the check the operation read", async () => {
     const seen: string[] = [];
-    await setup({ authorize: ({ operation }) => (seen.push(operation), true) }).call("GET", `${MOUNT}/config`);
+    await setup({ authorize: ({ operation }) => (seen.push(operation), true) }).call("GET", `${MOUNT}/keys/k`);
     expect(seen).toEqual(["read"]);
   });
 

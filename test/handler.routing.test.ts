@@ -10,7 +10,7 @@ describe("request handler routing", () => {
   });
 
   it("H2: the body is the resolved configuration", async () => {
-    expect((await setup().call("GET", `${MOUNT}/config`)).body).toEqual(JSON.parse(JSON.stringify(config)));
+    expect((await setup().call("GET", `${MOUNT}/config`)).body).toEqual({ ...JSON.parse(JSON.stringify(config)), access: { write: true } });
   });
 
   it("H3: a path outside the mount point is 404", async () => {

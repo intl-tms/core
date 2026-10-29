@@ -8,7 +8,20 @@ describe("package entries", () => {
     expect(Object.keys(website).sort()).toEqual(
       [
         "ConfigError",
+        "EDITING_TOKEN_HEADER",
+        "EDITING_TOKEN_LIFETIME_MS",
+        "EDITING_TOKEN_PREFIX",
+        "EDITING_TOKEN_RECHECK_MS",
+        "HELP_TEXT_MAX_LENGTH",
+        "PAIRING_CODE_LIFETIME_MS",
+        "PAIRING_TEXT",
+        "createMemoryPairingStore",
+        "createPairing",
         "PROTOCOL_VERSION",
+        "allowAll",
+        "anyOf",
+        "isEditingRequest",
+        "sessionCheck",
         "SHARED_NOTICE",
         "TOGGLE_COOKIE_NAME",
         "TOGGLE_ON_VALUE",
@@ -44,6 +57,7 @@ describe("package entries", () => {
         "DEFAULT_COLORS",
         "DEFAULT_SCAN_ATTRIBUTES",
         "DEFAULT_TIME_LIMIT_MS",
+        "HELP_TEXT_MAX_LENGTH",
         "PANEL_TEXT",
         "SHARED_NOTICE",
         "USAGE_COOLDOWN_MS",
@@ -60,9 +74,12 @@ describe("package entries", () => {
         "fieldText",
         "hiddenErrors",
         "highlightSettings",
+        "isHelpText",
         "isHttpUrl",
         "isSharedKey",
         "openPicker",
+        "readHelpText",
+        "readSignInDescriptor",
         "relativeTime",
         "resolveLocale",
         "resolveToolbarFilters",
@@ -75,6 +92,6 @@ describe("package entries", () => {
   });
 
   it("the workbench entry's public names equal the pinned list", () => {
-    expect(Object.keys(storybook).sort()).toEqual(["EDIT_GLOBAL", "PANEL_CSS", "PANEL_VIEW_TEXT", "STORYBOOK_TEXT", "createLog", "createPanelView", "createStorybookAddon"].sort());
+    expect(Object.keys(storybook).sort()).toEqual(["EDIT_GLOBAL", "PANEL_CSS", "PANEL_VIEW_TEXT", "SIGN_IN_TEXT", "STORYBOOK_TEXT", "createLog", "createPanelView", "createStorybookAddon"].sort());
   });
 });
