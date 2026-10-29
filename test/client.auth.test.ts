@@ -3,7 +3,7 @@ import { createClient } from "../src/client.js";
 import { readHelpText, readSignInDescriptor } from "../src/sign-in.js";
 import { clientConfig, fakeRequest, jsonResponse } from "./support/fakes.js";
 
-const refused = { error: "unauthorized", code: "unauthorized", auth: { session: { signIn: "https://app.test/in", credentials: true }, help: "Sign in with your company account." } };
+const refused = { error: "unauthorized", code: "unauthorized", auth: { credentials: true, help: "Sign in with your company account." } };
 
 describe("client: refusals", () => {
   it("a 401 read is unauthenticated with the descriptor", async () => {
@@ -60,8 +60,8 @@ describe("reading a descriptor as untrusted input", () => {
     expect(readSignInDescriptor(body)).toBeUndefined();
   });
 
-  it.each(["javascript:alert(1)", "data:text/html,x", "/relative", "", 42])("a sign-in address %j drops the session", (signIn) => {
-    expect(readSignInDescriptor({ auth: { session: { signIn }, help: "Ask IT." } })).toEqual({ help: "Ask IT." });
+  it("a session member from an older website is not carried", () => {
+    expect(readSignInDescriptor({ auth: { session: { signIn: "https://app.test/in", credentials: true }, help: "Ask IT." } })).toEqual({ help: "Ask IT." });
   });
 
   it("a pairing address that is not http drops the pairing", () => {
@@ -69,11 +69,11 @@ describe("reading a descriptor as untrusted input", () => {
   });
 
   it("credentials that are not a boolean are dropped", () => {
-    expect(readSignInDescriptor({ auth: { session: { signIn: "https://app.test/in", credentials: "yes" } } })).toEqual({ session: { signIn: "https://app.test/in" } });
+    expect(readSignInDescriptor({ auth: { credentials: "yes" } })).toEqual({});
   });
 
   it("unknown members are not carried", () => {
-    expect(readSignInDescriptor({ auth: { session: { signIn: "https://app.test/in", extra: 1 }, other: 2 } })).toEqual({ session: { signIn: "https://app.test/in" } });
+    expect(readSignInDescriptor({ auth: { credentials: true, other: 2 } })).toEqual({ credentials: true });
   });
 
   it("a help text over the limit is dropped, not shortened", () => {

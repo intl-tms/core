@@ -173,10 +173,7 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
   // on the caller, so it tells a stranger nothing a login page would not.
   const declared = authorize.declares;
   const descriptor: SignInDescriptor = {};
-  if (declared?.session !== undefined) {
-    const signIn = new URL(declared.session.signIn, ownOrigin).href;
-    descriptor.session = declared.session.credentials === undefined ? { signIn } : { signIn, credentials: declared.session.credentials };
-  }
+  if (declared?.credentials !== undefined) descriptor.credentials = declared.credentials;
   if (pairing !== undefined) descriptor.pair = { address: new URL(`${mount}/pair`, ownOrigin).href };
   if (declared?.help?.unauthenticated !== undefined) descriptor.help = declared.help.unauthenticated;
   const unauthorized = { error: "unauthorized", code: "unauthorized", auth: descriptor };

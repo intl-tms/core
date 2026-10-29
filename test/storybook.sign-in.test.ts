@@ -67,7 +67,6 @@ function website(options: { pairing?: boolean; roles?: string[] } = {}) {
   const authorize = sessionCheck<User>({
     user: async (request) => (await pairing.user(request)) ?? (/editor=ada/.test(request.headers.get("cookie") ?? "") ? { id: "ada", name: "Ada", roles } : undefined),
     may: (user) => user.roles.includes("Editor"),
-    signIn: "/editors/sign-in",
     help: { unauthenticated: "Use your company account.", forbidden: "Ask IT for the Editor role." },
   });
   const adapter = createMemoryAdapter<typeof config>();

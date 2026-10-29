@@ -28,10 +28,10 @@ describe("composing checks", () => {
   });
 
   it("the descriptor is the union of what the checks declare", async () => {
-    const session = sessionCheck({ user: () => null, may: () => true, signIn: "/in", help: { forbidden: "Ask IT." } });
-    const other = sessionCheck({ user: () => null, may: () => true, signIn: "/other", help: { unauthenticated: "Use your company account." } });
+    const session = sessionCheck({ user: () => null, may: () => true, credentials: true, help: { forbidden: "Ask IT." } });
+    const other = sessionCheck({ user: () => null, may: () => true, credentials: false, help: { unauthenticated: "Use your company account." } });
     const reply = await setup({ authorize: anyOf(() => false, session, other) }).call("GET", `${MOUNT}/config`);
-    expect(reply.body.auth).toEqual({ session: { signIn: `${ORIGIN}/in` }, help: "Use your company account." });
+    expect(reply.body.auth).toEqual({ credentials: true, help: "Use your company account." });
   });
 });
 
@@ -65,7 +65,7 @@ describe("allow everything, for local development", () => {
 
 describe("marking only for Editors", () => {
   const toggled = (cookie = "tms-edit=1") => new Request(`${ORIGIN}/da`, { headers: { cookie } });
-  const editors: Authorize = sessionCheck({ user: (request) => (request.headers.get("cookie")?.includes("editor=1") ? { id: "u-1" } : null), may: () => true, signIn: "/in" });
+  const editors: Authorize = sessionCheck({ user: (request) => (request.headers.get("cookie")?.includes("editor=1") ? { id: "u-1" } : null), may: () => true });
 
   it("the Toggle alone marks without a check", async () => {
     expect(await isEditingRequest(toggled())).toBe(true);

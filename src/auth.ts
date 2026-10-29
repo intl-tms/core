@@ -7,7 +7,6 @@ import { ConfigError } from "./config.js";
 import { isHelpText } from "./sign-in.js";
 import type { MaybePromise } from "./storage.js";
 import { TOGGLE_COOKIE_NAME, TOGGLE_ON_VALUE } from "./toggle.js";
-import { isHttpUrl } from "./usage.js";
 
 /** Whether a request reads or changes translations. */
 export type Operation = "read" | "write";
@@ -48,12 +47,8 @@ export interface HelpTexts {
 
 /** What a check tells a refused caller about signing in. Fixed when the check is built. */
 export interface AuthDeclaration {
-  session?: {
-    /** The sign-in address of the login for Editors: an absolute `http` or `https` address, or a path on the website's origin. */
-    signIn: string;
-    /** Requests must include credentials, because the session cookie travels to another origin of the same site. */
-    credentials?: boolean;
-  };
+  /** Requests must include credentials, because the session cookie travels to another origin of the same site. */
+  credentials?: boolean;
   help?: HelpTexts;
 }
 
@@ -92,16 +87,6 @@ export function judge(answer: unknown): Judgement {
   return { allow: false, reason: "unauthenticated" };
 }
 
-function checkSignIn(signIn: unknown): void {
-  const isPath = typeof signIn === "string" && signIn.startsWith("/") && !signIn.startsWith("//");
-  if (isPath || (typeof signIn === "string" && isHttpUrl(signIn))) return;
-  throw new ConfigError(
-    `the sign-in address is ${JSON.stringify(signIn)}`,
-    "an editing tool opens it for an Editor who is not signed in, so it must be a web address",
-    "give an absolute http or https address, or a path on the website starting with a single /",
-  );
-}
-
 function checkHelp(help: HelpTexts | undefined): void {
   for (const name of ["unauthenticated", "forbidden"] as const) {
     const text: unknown = help?.[name];
@@ -124,8 +109,6 @@ export interface SessionCheckOptions<U extends Identity> {
   user: (request: Request) => MaybePromise<U | null | undefined>;
   /** Whether that user may do this, for example whether they hold the Editor role. */
   may: (user: U, context: AuthorizeContext) => MaybePromise<boolean>;
-  /** Where an Editor who is not signed in signs in. An absolute `http` or `https` address, or a path on the website. */
-  signIn: string;
   /** Set when the session cookie must travel to another origin of the same site. */
   credentials?: boolean;
   /** The website's own words for a refused caller. */
@@ -134,18 +117,17 @@ export interface SessionCheckOptions<U extends Identity> {
 
 /**
  * A check that authenticates with the website's login for Editors. Nobody
- * signed in is not authenticated (`401`, with the sign-in address); a user
- * who may not is forbidden (`403`); a user who may is allowed, with their
- * identifier and name as the identity.
+ * signed in is not authenticated (`401`); a user who may not is forbidden
+ * (`403`); a user who may is allowed, with their identifier and name as the
+ * identity.
  *
- * The sign-in address and help texts are validated here, when the server
- * starts, and throw a `ConfigError` when they cannot work.
+ * The help texts are validated here, when the server starts, and throw a
+ * `ConfigError` when they cannot work.
  */
 export function sessionCheck<U extends Identity>(options: SessionCheckOptions<U>): Authorize {
-  checkSignIn(options.signIn);
   checkHelp(options.help);
   const declares: AuthDeclaration = {
-    session: options.credentials === undefined ? { signIn: options.signIn } : { signIn: options.signIn, credentials: options.credentials },
+    ...(options.credentials === undefined ? {} : { credentials: options.credentials }),
     ...(options.help === undefined ? {} : { help: { ...options.help } }),
   };
   const check = async (context: AuthorizeContext): Promise<AuthAnswer> => {
@@ -167,7 +149,7 @@ export function anyOf(...checks: Authorize[]): Authorize {
   const declares: AuthDeclaration = {};
   for (const { declares: declared } of checks) {
     if (declared === undefined) continue;
-    if (declares.session === undefined && declared.session !== undefined) declares.session = declared.session;
+    if (declares.credentials === undefined && declared.credentials !== undefined) declares.credentials = declared.credentials;
     for (const name of ["unauthenticated", "forbidden"] as const) {
       const text = declared.help?.[name];
       if (text !== undefined && declares.help?.[name] === undefined) declares.help = { ...declares.help, [name]: text };

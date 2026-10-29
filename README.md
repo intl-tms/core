@@ -49,12 +49,11 @@ export const config = resolveConfig({
 });
 
 // 2. Say who may edit: someone signed in to your login for Editors who holds
-//    the Editor role. Nobody signed in gets 401 and the sign-in address;
-//    someone without the role gets 403 and your help text.
+//    the Editor role. Nobody signed in gets 401; someone without the role
+//    gets 403 and your help text.
 export const authorize = sessionCheck({
   user: (request) => findEditorSession(request),
   may: (user) => user.roles.includes("Editor"),
-  signIn: "/editors/sign-in",
   help: { forbidden: "Ask IT for the Editor role." },
 });
 
@@ -176,7 +175,6 @@ Things to know:
   const authorize = sessionCheck({
     user: async (request) => (await pairing.user(request)) ?? editorSessions.user(request),
     may: (user) => user.roles.includes("Editor"),
-    signIn: "/editors/sign-in",
   });
   export const handler = createHandler({ config, adapter, authorize, pairing, cors: { origins: ["http://localhost:6006"] } });
   ```
@@ -258,12 +256,15 @@ your `onError` hook, never to the response.
 A `401` also says how to sign in, and a `403` may carry your help text:
 
 ```json
-{ "error": "unauthorized", "code": "unauthorized", "auth": { "session": { "signIn": "https://app.example.com/editors/sign-in" }, "help": "Sign in with your company account." } }
+{ "error": "unauthorized", "code": "unauthorized", "auth": { "credentials": true, "pair": { "address": "https://app.example.com/api/tms/pair" }, "help": "Sign in with your company account." } }
 { "error": "forbidden", "code": "forbidden", "help": "Ask IT for the Editor role." }
 ```
 
-What a refusal says is fixed when the handler is built and never depends on the
-caller. A hand-written check declares nothing, so its `401` carries `auth: {}`.
+`credentials` is `true` when requests must include credentials (set with
+`sessionCheck`'s `credentials`), and `pair` is there when the handler offers
+Storybook's sign-in. What a refusal says is fixed when the handler is built and
+never depends on the caller. A hand-written check declares nothing, so its
+`401` carries `auth: {}` unless the handler offers pairing.
 
 ## Security
 

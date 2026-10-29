@@ -457,19 +457,16 @@ rule of building only those a milestone lists:
   of the function, not passed to `createHandler`. A hand-written function has
   none, so its `401` carries `auth: {}`. The handler builds both refusal bodies
   once, when it is built, so they cannot depend on the caller.
-- **A path as the sign-in address** is resolved against the origin of the base
-  path when the handler is built, so tools always receive an absolute address.
-  `//host` is refused: it looks like a path and is another origin.
 - **Help texts** are refused at boot unless they are non-empty, at most 200
   characters, and free of every C0 and C1 control character and the Unicode
   line and paragraph separators. Tools apply the same rule on receipt and drop
   a text that fails it instead of shortening it.
-- **`sessionCheck({ user, may, signIn, credentials?, help? })`.** `user`
+- **`sessionCheck({ user, may, credentials?, help? })`.** `user`
   returns an object with at least `id` (and optionally `name`), so the
   Developer's own user type flows into `may`. Only `id` and `name` become the
   identity: roles and e-mail addresses are not passed to storage.
 - **`anyOf` asks its checks in order** and stops at the first allow. Its
-  declaration takes each member (session, each help text) from the first check
+  declaration takes each member (credentials, each help text) from the first check
   that declares it.
 - **`allowAll(condition)`** warns with `console.warn` when it is built with
   `true`, not on each request.
@@ -491,9 +488,8 @@ rule of building only those a milestone lists:
 - **Client refusals.** A `401` failure carries `auth`, the validated
   descriptor, and a `403` failure carries `help`; a save result carries the
   same two members per Locale. A descriptor on any other status is ignored. A
-  member that fails validation is dropped: a session whose sign-in address is
-  not `http` or `https`, a pairing address likewise, a non-boolean
-  `credentials`, an invalid help text.
+  member that fails validation is dropped: a pairing address that is not
+  `http` or `https`, a non-boolean `credentials`, an invalid help text.
 - **The protocol version stays.** Everything added is a member an older tool
   ignores, and an older tool already reports any `401` as not signed in.
 
@@ -566,3 +562,17 @@ rule of building only those a milestone lists:
   does not reach the addon.
 - **Not built:** the pop-up's words are English only, and a Storybook manager
   panel still is not built.
+
+## No sign-in address in a refusal
+
+- **A `401` no longer names a sign-in address**, and `sessionCheck` has no
+  `signIn` option. The descriptor is `{ credentials?, pair?, help? }`. No tool
+  used the address: the Extension shows nothing about signing in, so a refusal
+  cannot reveal the website's login to whoever has the Extension, and a
+  workbench signs in through pairing, whose `signIn(returnTo)` builds its own
+  address.
+- **`credentials` moved up a level**, from `session.credentials` to
+  `credentials`: without the address, `session` would have held only that.
+- **A `session` member from an older website is dropped**, not read. The
+  descriptor shipped only in 0.3.0, and the API may change between any two
+  releases.
