@@ -92,6 +92,6 @@ describe("package entries", () => {
   });
 
   it("the workbench entry's public names equal the pinned list", () => {
-    expect(Object.keys(storybook).sort()).toEqual(["EDIT_GLOBAL", "PANEL_CSS", "PANEL_VIEW_TEXT", "STORYBOOK_TEXT", "createLog", "createPanelView", "createStorybookAddon"].sort());
+    expect(Object.keys(storybook).sort()).toEqual(["EDIT_GLOBAL", "PANEL_CSS", "PANEL_VIEW_TEXT", "SIGN_IN_TEXT", "STORYBOOK_TEXT", "createLog", "createPanelView", "createStorybookAddon"].sort());
   });
 });

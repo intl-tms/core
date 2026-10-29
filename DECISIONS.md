@@ -496,3 +496,68 @@ rule of building only those a milestone lists:
   `credentials`, an invalid help text.
 - **The protocol version stays.** Everything added is a member an older tool
   ignores, and an older tool already reports any `401` as not signed in.
+
+## The workbench signs in (AP)
+
+- **Pairing is a value handed to `createHandler`**, from
+  `createPairing({ store, signIn, session, recheck })`. The handler then serves
+  `{basePath}/pair`, `/pair/token` and `/pair/end`, and every `401` names the
+  pairing address. These three routes are served without asking the check
+  first; the pop-up asks it itself (with the operation `write`, since a token
+  is for editing), and the exchange and sign-out need no session. Pairing with
+  an empty `cors.origins` throws at boot: no workbench could ever be handed a
+  code.
+- **A token's user is judged by the Developer's own check.** `pairing.user(request)`
+  returns the Developer's user object for a valid token, and the website's
+  `sessionCheck` reads it before the session:
+  `user: (r) => pairing.user(r) ?? session(r)`. The Editor role and the
+  editing switch therefore apply to tokens exactly as to sessions, and nothing
+  about roles is in the Core. The record keeps that user as JSON, and
+  `recheck(user, grant)` returns it as it is now.
+- **What the pop-up's session gives** is `{ user, grant, signedInAt, checkedAt? }`
+  from the Developer's `session(request)`. The grant is what the identity
+  provider needs to check the user again (a refresh token), and `signedInAt`
+  makes a token end 10 hours after the sign-in it came from, not after the
+  pairing. `checkedAt` carries over when the session last checked, so the hour
+  is not restarted by pairing.
+- **Codes live in the same store as tokens**, with `kind: "code"`, so pairing
+  works across several servers. `delete(digest)` answers whether the record
+  was there, which makes a code usable once even when two exchanges race. The
+  exchange deletes the code before it checks the proof, so a wrong proof uses
+  the code up. A code never exchanged stays until it is found or the store
+  removes records past `endsAt`, which the store may do at any time.
+- **The challenge is the SHA-256 of the proof's text**, URL-safe base64
+  without padding, as in OAuth's PKCE. The exchange must come from the origin
+  the code was handed to.
+- **The pop-up page** is the Core's: a fixed English page (`PAIRING_TEXT`)
+  whose one script, allowed by a per-response nonce, posts the message to the
+  exact listed origin and closes the window. It is never cached, sends no
+  referrer and cannot be framed. It reaches the window through `opener` and
+  `close` because the module is server code. A website whose own content
+  security policy is added to this response must allow it, and a page served
+  with `Cross-Origin-Opener-Policy: same-origin` cuts the pop-up off from the
+  workbench (the pop-up then says so).
+- **A refusal in the pop-up is posted too**, as `{ refused: "forbidden", help? }`,
+  so the panel can say the Editor may not edit. It carries nothing secret.
+- **The token header is `tms-editing-token`**, and tokens start with `tmset_`.
+  The request handed to `onError` has the header removed.
+- **The addon opens the pop-up empty, inside the click**, and sends it to the
+  pairing address once the challenge is computed: the digest is asynchronous,
+  and anything awaited before `window.open` gets the pop-up blocked. A window
+  message counts only from that pop-up and from the pairing address's origin.
+  Closing the pop-up without signing in goes back to the state before.
+- **The token is sent only to the pairing address's origin**, in this tab's
+  session storage, and never written anywhere else.
+- **The sign-in area shows once the website has said it offers pairing** (a
+  `401` naming a pairing address) or a token is held. A `401` for the
+  configuration is then not shown as a failure notice: the sign-in line says
+  it, and the diagnostics log keeps it. A website without pairing still gets
+  the notice it got before.
+- **`credentials` is no longer an addon option.** Decision 9 makes pairing the
+  only way a workbench signs in, also on `localhost`.
+- **A sign-in view that throws** when drawn, or when told a change, is removed
+  and the addon's own line takes its place, with the error in the log. An
+  error React throws while rendering asynchronously is React's to report: it
+  does not reach the addon.
+- **Not built:** the pop-up's words are English only, and a Storybook manager
+  panel still is not built.

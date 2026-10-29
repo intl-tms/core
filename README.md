@@ -145,8 +145,8 @@ endpoints the website serves.
 | Option | Meaning |
 | --- | --- |
 | `config` | Required. The configuration endpoint's address, used exactly as written, or a resolved configuration object. |
-| `request` | How requests are made; defaults to `fetch`. Add a token header here, or call a handler directly: `(url, init) => handler(new Request(url, init))` needs no server. |
-| `credentials` | `"include"` sends the website's cookies from Storybook's origin. |
+| `request` | How requests are made; defaults to `fetch`. Call a handler directly, `(url, init) => handler(new Request(url, init))`, and no server is needed. The editing token is added to what it is given. |
+| `signInView` | `(element, { state, signIn, signOut, onChange }) => cleanup`: draws the panel's sign-in area your way. Without it the addon shows its own line. |
 | `locale` | `(context) => string`, the Locale a story is rendered in. Defaults to the `locale` global, then `<html lang>`, then the Source Locale. |
 | `editing` | Start switched on. Defaults to off. |
 | `placement` | `"right"` (default), `"left"` or `"bottom"`. |
@@ -155,10 +155,37 @@ endpoints the website serves.
 
 Things to know:
 
-- **Storybook is another origin.** List it in the handler's cross-origin policy,
-  `cors: { origins: ["http://localhost:6006"] }`, or writes are refused with
-  `403` and reads are blocked by the browser. `authorize` still decides who may
-  read and write: give the addon a `request` that carries what it checks.
+- **Editors sign in through a pop-up on your website's login.** Storybook is
+  usually published on another site, where your session cookie does not
+  travel, so it never uses the cookie, also on `localhost`. The panel shows
+  **Sign in**; the pop-up signs the Editor in with your login for Editors and
+  hands Storybook a one-time code, which it exchanges for an editing token kept
+  in that browser tab only. The token lives as long as a session (10 hours
+  from sign-in, re-checked every hour) and your `authorize` judges its user
+  like a session's. Set it up on the website:
+
+  ```ts
+  import { createHandler, createPairing, sessionCheck } from "@intl-tms/core";
+
+  const pairing = createPairing({
+    store: pairingStore, // save, find, update, delete, deleteAllOf: in your database
+    signIn: (returnTo) => `/editors/sign-in?return=${encodeURIComponent(returnTo)}`,
+    session: (request) => editorSessions.forPairing(request), // { user, grant, signedInAt }
+    recheck: (user, grant) => identityProvider.recheck(user, grant),
+  });
+  const authorize = sessionCheck({
+    user: async (request) => (await pairing.user(request)) ?? editorSessions.user(request),
+    may: (user) => user.roles.includes("Editor"),
+    signIn: "/editors/sign-in",
+  });
+  export const handler = createHandler({ config, adapter, authorize, pairing, cors: { origins: ["http://localhost:6006"] } });
+  ```
+
+  List every Storybook origin in `cors.origins`: the pop-up hands a code to no
+  other origin. Call `pairing.endAllOf(id)` when an Editor signs out on the
+  website and in your emergency stop.
+- **A published Storybook may be public.** Without a token it cannot read
+  stored values or save.
 - **Off means off here too.** With the switch off, `tms.mark` returns the very
   same Catalog, and no request, element or stylesheet is created.
 - **A story shows what the store holds, not only what Storybook bundled.** While
@@ -360,7 +387,7 @@ consume them, so pin an exact version if you build on them.
 
 | Group | Exports |
 | --- | --- |
-| Addon | `createStorybookAddon`, `EDIT_GLOBAL`, `STORYBOOK_TEXT` |
+| Addon | `createStorybookAddon`, `EDIT_GLOBAL`, `STORYBOOK_TEXT`, `SIGN_IN_TEXT` |
 | Built-in panel | `createPanelView`, `createLog`, `PANEL_CSS`, `PANEL_VIEW_TEXT` |
 
 `createPanelView` is the addon's panel on its own: plain DOM over

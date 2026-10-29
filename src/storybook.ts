@@ -15,6 +15,8 @@ export type {
   StorybookSave,
   StorybookToolbarItem,
 } from "./storybook-addon.js";
+export { SIGN_IN_TEXT } from "./workbench-sign-in.js";
+export type { SignInControls, SignInState, SignInStatus, SignInView } from "./workbench-sign-in.js";
 export { PANEL_VIEW_TEXT, createPanelView } from "./panel-view.js";
 export type { PanelView, PanelViewOptions } from "./panel-view.js";
 export { createLog } from "./panel-log.js";

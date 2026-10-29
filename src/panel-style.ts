@@ -88,6 +88,12 @@ export const PANEL_CSS = `
 
 .panel { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 
+.sign-in { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: var(--size-small); }
+.sign-in[hidden], :host([data-tms-collapsed]) .sign-in { display: none; }
+.sign-in > p { flex: 1 1 100%; overflow-wrap: anywhere; }
+.sign-in-help { color: var(--text-muted); }
+.sign-in-help[hidden] { display: none; }
+
 h1, h2, h3, p, ul { margin: 0; }
 ul { padding: 0; list-style: none; }
 
