@@ -488,5 +488,11 @@ rule of building only those a milestone lists:
   with a check marks only when the check allows reading. A check that throws
   marks nothing. Asking the check costs a session lookup per page request, the
   same lookup the endpoints make.
+- **Client refusals.** A `401` failure carries `auth`, the validated
+  descriptor, and a `403` failure carries `help`; a save result carries the
+  same two members per Locale. A descriptor on any other status is ignored. A
+  member that fails validation is dropped: a session whose sign-in address is
+  not `http` or `https`, a pairing address likewise, a non-boolean
+  `credentials`, an invalid help text.
 - **The protocol version stays.** Everything added is a member an older tool
   ignores, and an older tool already reports any `401` as not signed in.

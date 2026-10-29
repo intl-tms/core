@@ -350,6 +350,7 @@ consume them, so pin an exact version if you build on them.
 | Client | `createClient`, `DEFAULT_TIME_LIMIT_MS`, `USAGE_COOLDOWN_MS` |
 | Locale | `resolveLocale` |
 | Usage helpers | `aggregateUsage`, `isHttpUrl` |
+| Signing in | `readSignInDescriptor`, `readHelpText`, `isHelpText`, `HELP_TEXT_MAX_LENGTH` |
 | Panel store | `createPanelStore` |
 | Panel logic | `buildChanges`, `changedColumns`, `shouldRenderToolbar`, `resolveToolbarFilters`, `visibleLocales`, `hiddenErrors`, `usagePath`, `relativeTime`, `conflictNotice`, `explainSaveFailure`, `fieldText`, `PANEL_TEXT` |
 | Shared rule | `isSharedKey`, `SHARED_NOTICE` |

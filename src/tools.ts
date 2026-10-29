@@ -15,6 +15,8 @@ export type { PickerChoice } from "./picker.js";
 export { DEFAULT_TIME_LIMIT_MS, USAGE_COOLDOWN_MS, createClient } from "./client.js";
 export type { Client, ClientConfig, ClientOptions, Failure, LocaleWrite, ReadUsageResult, ReadValuesResult, RequestFn, UsageOutcome } from "./client.js";
 export { resolveLocale } from "./locale.js";
+export { HELP_TEXT_MAX_LENGTH, isHelpText, readHelpText, readSignInDescriptor } from "./sign-in.js";
+export type { SignInDescriptor } from "./sign-in.js";
 export { createSession } from "./session.js";
 export type { HiddenItem, Session, SessionOptions, SessionSink } from "./session.js";
 export { PANEL_TEXT, buildChanges, changedColumns, conflictNotice, explainSaveFailure, hiddenErrors, relativeTime, resolveToolbarFilters, shouldRenderToolbar, usagePath, visibleLocales } from "./panel-logic.js";

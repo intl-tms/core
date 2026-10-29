@@ -2,6 +2,7 @@
 // throws: every failure is a returned value.
 
 import { resolveEndpoint } from "./endpoints.js";
+import { readHelpText, readSignInDescriptor, type SignInDescriptor } from "./sign-in.js";
 import { usageSignature } from "./usage.js";
 import type { ExpectedValues, FailureClass, LocaleSaveResult, SaveResult, Usage, UsageReport, ValuesEnvelope, WireRow } from "./wire.js";
 
@@ -51,6 +52,10 @@ export interface Failure {
   /** For display. Tools branch on `class`. */
   reason?: string;
   status?: number;
+  /** How to sign in, on a `401` whose body carries a valid sign-in descriptor. */
+  auth?: SignInDescriptor;
+  /** The website's help text, on a `403` that carries a valid one. */
+  help?: string;
 }
 
 /** The answer to {@link Client.readValues}. */
@@ -147,6 +152,27 @@ function reasonFrom(body: string): string | undefined {
   return parsed === null ? undefined : text.slice(0, MAX_REASON_LENGTH);
 }
 
+/**
+ * What a refusal says beyond its reason: the sign-in descriptor of a `401`,
+ * the help text of a `403`. Both are untrusted and validated; whatever is not
+ * valid is left out.
+ */
+function refusalDetails(status: number, body: string): Pick<Failure, "auth" | "help"> {
+  if (status !== 401 && status !== 403) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return {};
+  }
+  if (status === 401) {
+    const auth = readSignInDescriptor(parsed);
+    return auth === undefined ? {} : { auth };
+  }
+  const help = isRecord(parsed) ? readHelpText(parsed.help) : undefined;
+  return help === undefined ? {} : { help };
+}
+
 /** The result of one round trip. */
 type Sent = { ok: true; status: number; body: string } | { ok: false; status?: number; body: string; failure: Failure };
 
@@ -187,7 +213,9 @@ export function createClient(options: ClientOptions): Client {
       }
       if (response.ok) return { ok: true, status: response.status, body };
       const reason = reasonFrom(body);
-      return { ok: false, status: response.status, body, failure: { class: classifyStatus(response.status), status: response.status, ...(reason === undefined ? {} : { reason }) } };
+      const failure: Failure = { class: classifyStatus(response.status), status: response.status, ...(reason === undefined ? {} : { reason }) };
+      Object.assign(failure, refusalDetails(response.status, body));
+      return { ok: false, status: response.status, body, failure };
     };
     try {
       const outcome = await Promise.race([trip(), expired]);
@@ -249,6 +277,8 @@ export function createClient(options: ClientOptions): Client {
     const result: LocaleSaveResult = { ok: false, failure: sent.failure.class };
     if (sent.status !== undefined) result.status = sent.status;
     if (sent.failure.reason !== undefined) result.message = sent.failure.reason;
+    if (sent.failure.auth !== undefined) result.auth = sent.failure.auth;
+    if (sent.failure.help !== undefined) result.help = sent.failure.help;
     if (sent.status === 409) {
       // A conflict's stored row is accepted only when it has the shape of a row.
       try {
