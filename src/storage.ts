@@ -1,6 +1,7 @@
 // The storage seam: the one interface the request handler is written against,
 // and a complete in-memory adapter for tests and spikes.
 
+import type { Identity } from "./auth.js";
 import type { Capability, LocaleOf, OpenRow, RowOf } from "./config.js";
 import type { IsUntyped, RuntimeUsage, Usage, UsageReport, Write } from "./wire.js";
 import { isEmptyPatch, writePatch } from "./wire.js";
@@ -14,6 +15,16 @@ export type AdapterLocale<C> = IsUntyped<C> extends true ? string : LocaleOf<C>;
 /** The rows an adapter stores, typed by the configuration. */
 export type AdapterRow<C> = IsUntyped<C> extends true ? OpenRow : RowOf<C>;
 
+/**
+ * What every storage operation is told about the request it serves. The Core
+ * only passes it on and records nothing: whether a change is stored with who
+ * made it is the adapter's choice.
+ */
+export interface StorageContext {
+  /** Who the authorization check said the caller is, when it said. */
+  identity?: Identity;
+}
+
 /** One Locale's write as an untyped adapter receives it. */
 export interface UntypedWrite {
   locale: string;
@@ -26,18 +37,18 @@ export interface UntypedWrite {
  * for any configuration.
  */
 export interface UntypedStorageAdapter {
-  getValues: (key: string) => MaybePromise<Partial<Record<string, OpenRow>>>;
-  saveValue: (key: string, write: UntypedWrite) => MaybePromise<void>;
-  getUsage: (key: string) => MaybePromise<Usage[]>;
-  reportUsage: (report: UsageReport) => MaybePromise<void>;
+  getValues: (key: string, context?: StorageContext) => MaybePromise<Partial<Record<string, OpenRow>>>;
+  saveValue: (key: string, write: UntypedWrite, context?: StorageContext) => MaybePromise<void>;
+  getUsage: (key: string, context?: StorageContext) => MaybePromise<Usage[]>;
+  reportUsage: (report: UsageReport, context?: StorageContext) => MaybePromise<void>;
 }
 
 /** An adapter typed for one configuration. */
 export interface TypedStorageAdapter<C> {
-  getValues: (key: string) => MaybePromise<Partial<Record<AdapterLocale<C>, AdapterRow<C>>>>;
-  saveValue: (key: string, write: Write<C>) => MaybePromise<void>;
-  getUsage: (key: string) => MaybePromise<Usage[]>;
-  reportUsage: (report: UsageReport) => MaybePromise<void>;
+  getValues: (key: string, context?: StorageContext) => MaybePromise<Partial<Record<AdapterLocale<C>, AdapterRow<C>>>>;
+  saveValue: (key: string, write: Write<C>, context?: StorageContext) => MaybePromise<void>;
+  getUsage: (key: string, context?: StorageContext) => MaybePromise<Usage[]>;
+  reportUsage: (report: UsageReport, context?: StorageContext) => MaybePromise<void>;
 }
 
 /**
@@ -54,6 +65,10 @@ export interface TypedStorageAdapter<C> {
  *   there are none.
  * - `reportUsage(report)`: upserts each (key, URL) in a report, overwriting
  *   count and last-seen. Never prunes.
+ *
+ * The request handler also passes every operation a context naming who the
+ * caller is, when the authorization check said, so a change can be stored
+ * with its author. An adapter that does not need it leaves the parameter out.
  *
  * An adapter never answers HTTP and never validates input: it is handed only
  * validated, rebuilt data. Typed for a configuration, it is a compile error to

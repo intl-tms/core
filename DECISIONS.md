@@ -445,3 +445,48 @@ rule of building only those a milestone lists:
   with the `[intl-tms]` prefix.
 - **Verified in a real browser** against Storybook 10.6 (`@storybook/nextjs-vite`)
   in the demo app; the automated tests run in a simulated DOM.
+
+## Editors sign in (A1)
+
+- **The check's answer** is `true` or `{ identity }` to allow, `"forbidden"`
+  for someone signed in who may not (`403`, code `forbidden`), and anything
+  else not authenticated (`401`). A string rather than a helper function, so a
+  hand-written check needs no import. An identity without a non-empty string
+  `id` is not an identity, and the answer falls back to not authenticated.
+- **What a refusal says is declared on the check**, as a `declares` property
+  of the function, not passed to `createHandler`. A hand-written function has
+  none, so its `401` carries `auth: {}`. The handler builds both refusal bodies
+  once, when it is built, so they cannot depend on the caller.
+- **A path as the sign-in address** is resolved against the origin of the base
+  path when the handler is built, so tools always receive an absolute address.
+  `//host` is refused: it looks like a path and is another origin.
+- **Help texts** are refused at boot unless they are non-empty, at most 200
+  characters, and free of every C0 and C1 control character and the Unicode
+  line and paragraph separators. Tools apply the same rule on receipt and drop
+  a text that fails it instead of shortening it.
+- **`sessionCheck({ user, may, signIn, credentials?, help? })`.** `user`
+  returns an object with at least `id` (and optionally `name`), so the
+  Developer's own user type flows into `may`. Only `id` and `name` become the
+  identity: roles and e-mail addresses are not passed to storage.
+- **`anyOf` asks its checks in order** and stops at the first allow. Its
+  declaration takes each member (session, each help text) from the first check
+  that declares it.
+- **`allowAll(condition)`** warns with `console.warn` when it is built with
+  `true`, not on each request.
+- **The configuration's `access`** is `{ name?, write }`. Whether the caller
+  may write is found by asking the check a second time, with the same request
+  and the operation `write`. The configuration route therefore calls the check
+  twice; a check must not read the body anyway.
+- **The storage context is the last, optional parameter** of every adapter
+  operation: `{ identity? }`. Optional so code that calls an adapter directly,
+  and adapters that do not care, need no change. The handler always passes it,
+  `{}` for a caller allowed without an identity. The conformance run passes an
+  identity of its own, so an adapter that stores a change's author is run the
+  way it is served.
+- **The gate helper is `isEditingRequest(request, check?)`**, always
+  asynchronous. It reads the Toggle from the `Cookie` header by exact name, and
+  with a check marks only when the check allows reading. A check that throws
+  marks nothing. Asking the check costs a session lookup per page request, the
+  same lookup the endpoints make.
+- **The protocol version stays.** Everything added is a member an older tool
+  ignores, and an older tool already reports any `401` as not signed in.

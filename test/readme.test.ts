@@ -40,6 +40,8 @@ describe("readme", () => {
   describe("the quick start", () => {
     const code = /<!-- quickstart:start -->\s*```ts\n([\s\S]*?)```\s*<!-- quickstart:end -->/.exec(readme)?.[1];
 
+    const editor = { cookie: "editor-session=s-1" };
+
     async function load() {
       const dir = resolve(import.meta.dirname, ".generated");
       mkdirSync(dir, { recursive: true });
@@ -48,7 +50,7 @@ describe("readme", () => {
       return (await import(/* @vite-ignore */ pathToFileURL(file).href)) as {
         handler: (request: Request) => Promise<Response>;
         config: { basePath: string };
-        messagesFor: (catalog: Record<string, unknown>, editing: boolean) => Record<string, unknown>;
+        messagesFor: (catalog: Record<string, unknown>, request: Request) => Promise<Record<string, unknown>>;
       };
     }
 
@@ -58,18 +60,19 @@ describe("readme", () => {
 
     it("the handler it builds serves the configuration to an authorized caller", async () => {
       const { handler } = await load();
-      const response = await handler(new Request("https://app.example.com/api/tms/config", { headers: { "x-editor-token": "replace-me" } }));
+      const response = await handler(new Request("https://app.example.com/api/tms/config", { headers: editor }));
       expect(response.status).toBe(200);
     });
 
-    it("the handler it builds refuses an unauthorized caller", async () => {
+    it("the handler it builds refuses an unauthorized caller and says where to sign in", async () => {
       const { handler } = await load();
-      expect((await handler(new Request("https://app.example.com/api/tms/config"))).status).toBe(401);
+      const response = await handler(new Request("https://app.example.com/api/tms/config"));
+      expect([response.status, (await response.json()).auth.session.signIn]).toEqual([401, "https://app.example.com/editors/sign-in"]);
     });
 
     it("the handler it builds saves a translation", async () => {
       const { handler } = await load();
-      const headers = { "x-editor-token": "replace-me", "content-type": "application/json" };
+      const headers = { ...editor, "content-type": "application/json" };
       const put = await handler(new Request("https://app.example.com/api/tms/keys/home.title", { method: "PUT", headers, body: JSON.stringify({ locale: "da", value: "Hej" }) }));
       const get = await handler(new Request("https://app.example.com/api/tms/keys/home.title", { headers }));
       expect([put.status, (await get.json()).locales.da.value]).toEqual([200, "Hej"]);
@@ -78,12 +81,12 @@ describe("readme", () => {
     it("marking is off for a request that is not an editing session, and the output is the same object", async () => {
       const { messagesFor } = await load();
       const catalog = { a: "x" };
-      expect(messagesFor(catalog, false)).toBe(catalog);
+      expect(await messagesFor(catalog, new Request("https://app.example.com/da", { headers: { cookie: "tms-edit=1" } }))).toBe(catalog);
     });
 
-    it("marking is on for an editing session", async () => {
+    it("marking is on for an Editor who set the Toggle", async () => {
       const { messagesFor } = await load();
-      expect(messagesFor({ a: "x" }, true).a).not.toBe("x");
+      expect((await messagesFor({ a: "x" }, new Request("https://app.example.com/da", { headers: { cookie: "tms-edit=1; editor-session=s-1" } }))).a).not.toBe("x");
     });
   });
 });

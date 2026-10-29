@@ -1,14 +1,15 @@
-import type { UntypedStorageAdapter } from "./storage.js";
+import type { StorageContext, UntypedStorageAdapter, UntypedWrite } from "./storage.js";
+import type { UsageReport } from "./wire.js";
 
 /**
  * Any adapter, typed or not. Declared with method syntax and `never`
  * parameters so an adapter typed for one configuration is accepted too.
  */
 export interface ConformanceTarget {
-  getValues(key: string): unknown;
-  saveValue(key: string, write: never): unknown;
-  getUsage(key: string): unknown;
-  reportUsage(report: never): unknown;
+  getValues(key: string, context: never): unknown;
+  saveValue(key: string, write: never, context: never): unknown;
+  getUsage(key: string, context: never): unknown;
+  reportUsage(report: never, context: never): unknown;
 }
 
 /** The outcome of one conformance check. */
@@ -61,7 +62,16 @@ const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 
  * database, but it does write to it.
  */
 export async function runAdapterConformance(target: ConformanceTarget, options: ConformanceOptions = {}): Promise<ConformanceReport> {
-  const adapter = target as UntypedStorageAdapter;
+  const raw = target as UntypedStorageAdapter;
+  // Every operation is told who is calling, as the handler does, so an
+  // adapter that stores a change's author is run the way it is served.
+  const context: StorageContext = { identity: { id: "conformance", name: "Conformance run" } };
+  const adapter = {
+    getValues: (key: string) => raw.getValues(key, context),
+    saveValue: (key: string, write: UntypedWrite) => raw.saveValue(key, write, context),
+    getUsage: (key: string) => raw.getUsage(key, context),
+    reportUsage: (report: UsageReport) => raw.reportUsage(report, context),
+  };
   const locale = options.locale ?? "en";
   const field = options.fieldName;
   const advance = options.advanceTime ?? pause;

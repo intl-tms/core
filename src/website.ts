@@ -58,10 +58,14 @@ export type {
 } from "./wire.js";
 export { normalizeUrl, usageSignature } from "./usage.js";
 export { createMemoryAdapter, detectAdapterCapabilities } from "./storage.js";
-export type { AdapterLocale, AdapterRow, MaybePromise, MemoryAdapterOptions, StorageAdapter } from "./storage.js";
+export type { AdapterLocale, AdapterRow, MaybePromise, MemoryAdapterOptions, StorageAdapter, StorageContext } from "./storage.js";
 export { runAdapterConformance } from "./conformance.js";
 export type { ConformanceOptions, ConformanceReport, ConformanceResult } from "./conformance.js";
 export { createHandler } from "./handler.js";
-export type { AnyConfig, Authorize, AuthorizeContext, CorsPolicy, ErrorCode, Handler, HandlerOptions, Operation } from "./handler.js";
+export { allowAll, anyOf, isEditingRequest, sessionCheck } from "./auth.js";
+export type { AuthAnswer, AuthDeclaration, Authorize, AuthorizeContext, HelpTexts, Identity, Operation, SessionCheckOptions } from "./auth.js";
+export { HELP_TEXT_MAX_LENGTH } from "./sign-in.js";
+export type { SignInDescriptor } from "./sign-in.js";
+export type { AnyConfig, CorsPolicy, ErrorCode, Handler, HandlerOptions } from "./handler.js";
 export type { ConformanceTarget } from "./conformance.js";
 export type { TypedStorageAdapter, UntypedStorageAdapter, UntypedWrite } from "./storage.js";

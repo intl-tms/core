@@ -1,23 +1,13 @@
 // The server half of the wire contract: one function from a standard web
 // request to a standard web response. Web-standard APIs only.
 
+import { judge, type Authorize, type Operation } from "./auth.js";
 import { ConfigError, type FieldDef, type ResolvedConfig } from "./config.js";
-import type { MaybePromise, StorageAdapter, UntypedStorageAdapter, UntypedWrite } from "./storage.js";
+import type { SignInDescriptor } from "./sign-in.js";
+import type { MaybePromise, StorageAdapter, StorageContext, UntypedStorageAdapter, UntypedWrite } from "./storage.js";
 import { isHttpUrl } from "./usage.js";
 import { conflictingColumns, isEmptyPatch, writePatch, type ExpectedValues, type KeyMeta, type UsageReport } from "./wire.js";
 
-/** Whether a request reads or changes translations. */
-export type Operation = "read" | "write";
-
-/** What the authorization check receives. */
-export interface AuthorizeContext {
-  request: Request;
-  /** `read` for a GET, `write` for a PUT or POST. */
-  operation: Operation;
-}
-
-/** Answers whether a request may proceed. Anything other than `true` denies it. */
-export type Authorize = (context: AuthorizeContext) => MaybePromise<boolean>;
 
 /** The configuration shape a handler accepts. */
 export type AnyConfig = ResolvedConfig<string, readonly FieldDef[]>;
@@ -83,6 +73,7 @@ export type ErrorCode =
   | "invalid-request"
   | "nothing-to-update"
   | "unauthorized"
+  | "forbidden"
   | "not-found"
   | "method-not-allowed"
   | "conflict"
@@ -115,7 +106,7 @@ function setColumn(target: Record<string, string>, name: string, value: string):
 
 interface Route {
   methods: string;
-  serve: (request: Request) => Promise<Response>;
+  serve: (request: Request, context: StorageContext) => Promise<Response>;
 }
 
 /**
@@ -151,7 +142,32 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
   const corsOrigins = new Set(cors?.origins ?? []);
   // The website's public origin, from the configuration: behind a proxy that
   // rewrites the request URL, the origin a browser sends is still this one.
-  const ownOrigins = new Set<string>([new URL(config.basePath ?? config.endpoints.values).origin]);
+  const ownOrigin = new URL(config.basePath ?? config.endpoints.values).origin;
+  const ownOrigins = new Set<string>([ownOrigin]);
+  const authorize = options.authorize;
+  // What a refusal says is fixed when the handler is built: it never depends
+  // on the caller, so it tells a stranger nothing a login page would not.
+  const declared = authorize.declares;
+  const descriptor: SignInDescriptor = {};
+  if (declared?.session !== undefined) {
+    const signIn = new URL(declared.session.signIn, ownOrigin).href;
+    descriptor.session = declared.session.credentials === undefined ? { signIn } : { signIn, credentials: declared.session.credentials };
+  }
+  if (declared?.help?.unauthenticated !== undefined) descriptor.help = declared.help.unauthenticated;
+  const unauthorized = { error: "unauthorized", code: "unauthorized", auth: descriptor };
+  const forbidden = declared?.help?.forbidden === undefined ? { error: "forbidden", code: "forbidden" } : { error: "forbidden", code: "forbidden", help: declared.help.forbidden };
+
+  /**
+   * The configuration, with what this caller may do. Whether they may write
+   * is asked of the check with the same request, so the panel can say so
+   * before a save is refused.
+   */
+  const serveConfig = async (request: Request, context: StorageContext): Promise<Response> => {
+    const write = judge(await authorize({ request, operation: "write" })).allow;
+    const name = context.identity?.name;
+    return json(200, { ...served, access: name === undefined ? { write } : { name, write } });
+  };
+
   const onError = options.onError ?? ((error: unknown) => console.error("[core] request failed", error));
 
   const report = (error: unknown, request: Request): void => {
@@ -163,8 +179,8 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
   };
 
   /** A key's rows and, when a hook supplies it, its metadata, fetched concurrently. */
-  const readKey = async (key: string): Promise<Response> => {
-    const [locales, meta] = await Promise.all([adapter.getValues(key), options.metadata?.(key)]);
+  const readKey = async (key: string, context: StorageContext): Promise<Response> => {
+    const [locales, meta] = await Promise.all([adapter.getValues(key, context), options.metadata?.(key)]);
     return json(200, meta === undefined || meta === null ? { locales } : { meta, locales });
   };
 
@@ -231,7 +247,7 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
     return { write, expected: checked };
   };
 
-  const writeKey = async (request: Request, key: string): Promise<Response> => {
+  const writeKey = async (request: Request, key: string, context: StorageContext): Promise<Response> => {
     const body = await readJsonObject(request);
     if (body instanceof Response) return body;
     const validated = validateWrite(body);
@@ -240,11 +256,11 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
     if (expected !== undefined) {
       // The storage adapter is not involved in conflict detection; a Developer
       // gets it for free. With no stored row there is nothing to overwrite.
-      const rows = (await adapter.getValues(key)) as Record<string, Record<string, unknown>>;
+      const rows = (await adapter.getValues(key, context)) as Record<string, Record<string, unknown>>;
       const current = Object.hasOwn(rows, write.locale) ? rows[write.locale] : undefined;
       if (current !== undefined && conflictingColumns(current, expected, write).length > 0) return json(409, { error: "conflict", code: "conflict", current });
     }
-    await adapter.saveValue(key, write);
+    await adapter.saveValue(key, write, context);
     return json(200, { ok: true });
   };
 
@@ -264,7 +280,7 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
   };
 
   /** Validates a page's sightings and rebuilds the report from the validated properties. */
-  const acceptReport = async (request: Request): Promise<Response> => {
+  const acceptReport = async (request: Request, context: StorageContext): Promise<Response> => {
     const body = await readJsonObject(request);
     if (body instanceof Response) return body;
     const { url, title, keys } = body;
@@ -280,7 +296,7 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
       if (!valid) return bad(`keys[${i}] must be { key: string, count: positive integer }`);
       entries.push({ key: entry.key as string, count: entry.count as number });
     }
-    await adapter.reportUsage(title === undefined ? { url, keys: entries } : { url, title, keys: entries });
+    await adapter.reportUsage(title === undefined ? { url, keys: entries } : { url, title, keys: entries }, context);
     return json(200, { ok: true, count: entries.length });
   };
 
@@ -295,15 +311,15 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
       return fail(400, "malformed percent-encoding in the path", "malformed-path");
     }
     const [first, second] = segments;
-    if (segments.length === 1 && first === "config") return { methods: "GET", serve: async () => json(200, served) };
+    if (segments.length === 1 && first === "config") return { methods: "GET", serve: serveConfig };
     if (segments.length === 2 && first === "keys" && second !== "") {
       const key = second as string;
-      return { methods: "GET, PUT", serve: (request) => (request.method === "PUT" ? writeKey(request, key) : readKey(key)) };
+      return { methods: "GET, PUT", serve: (request, context) => (request.method === "PUT" ? writeKey(request, key, context) : readKey(key, context)) };
     }
     if (segments.length === 1 && first === "usage" && config.endpoints.usageReport !== undefined) return { methods: "POST", serve: acceptReport };
     if (segments.length === 2 && first === "usage" && second !== "" && config.endpoints.usageRead !== undefined) {
       const key = second as string;
-      return { methods: "GET", serve: async () => json(200, await adapter.getUsage(key)) };
+      return { methods: "GET", serve: async (_request, context) => json(200, await adapter.getUsage(key, context)) };
     }
     return fail(404, "not found", "not-found");
   };
@@ -328,8 +344,9 @@ export function createHandler<C extends AnyConfig>(options: HandlerOptions<C>): 
         return fail(403, "origin not allowed", "forbidden-origin");
       }
     }
-    if ((await options.authorize({ request, operation })) !== true) return fail(401, "unauthorized", "unauthorized");
-    return matched.serve(request);
+    const judged = judge(await authorize({ request, operation }));
+    if (!judged.allow) return judged.reason === "forbidden" ? json(403, forbidden) : json(401, unauthorized);
+    return matched.serve(request, judged.identity === undefined ? {} : { identity: judged.identity });
   };
 
   /**

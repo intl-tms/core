@@ -8,7 +8,12 @@ describe("package entries", () => {
     expect(Object.keys(website).sort()).toEqual(
       [
         "ConfigError",
+        "HELP_TEXT_MAX_LENGTH",
         "PROTOCOL_VERSION",
+        "allowAll",
+        "anyOf",
+        "isEditingRequest",
+        "sessionCheck",
         "SHARED_NOTICE",
         "TOGGLE_COOKIE_NAME",
         "TOGGLE_ON_VALUE",
