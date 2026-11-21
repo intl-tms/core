@@ -313,11 +313,12 @@ rule of building only those a milestone lists:
 - Configuration: collect-all validation, stricter Locale/colour/attribute
   validation, richer Schema, highlight style options (VAL-21 to 26, SCH-30 to
   37, CFG-22 to 24, CFG-35 to 37).
-- Server: 403 versus 401, route/key/Locale and identity in authorization,
+- Server: route/key/Locale and identity in authorization,
   request identifiers, no-store, size limits, stored row and revision on writes, batch write, delete, audit and rate-limit
   hooks, atomic conflicts, bulk read, static usage ingestion, expiry,
   pagination, preflight max-age (SRV-26/27, AUT-4 to 6, RD-8 to 10, WR-30 to
-  40, CON-20 to 23, USG-20 to 27, COR-8, COR-9).
+  40, CON-20 to 23, USG-20 to 27, COR-8, COR-9). 403 versus 401 was deferred
+  here and built later: see [Editors sign in (A1)](#editors-sign-in-a1).
 - Page: shadow roots and frames, incremental and time-sliced scanning,
   visibility, overlay and range highlight, keyboard access, pass-through
   modifier, hover and badges, pause, observation re-establishment, accessible
