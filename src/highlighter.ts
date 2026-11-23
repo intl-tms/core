@@ -11,8 +11,13 @@
 
 import { scan as scanRoot, type Found } from "./scanner.js";
 
-/** The built-in highlight colours. */
-export const DEFAULT_COLORS = { highlight: "#4CAF50", active: "#2196F3" } as const;
+/**
+ * The built-in outline colours: one hue, two weights. The violet is the
+ * editing tool's accent, so the outline on the website reads as the panel's
+ * and not as the website's own chrome. A website that wants its own brand
+ * overrides either through `colors` in its configuration.
+ */
+export const DEFAULT_COLORS = { highlight: "#8b5cf6", active: "#5b21b6" } as const;
 
 /** Attributes whose values are read by users or assistive technology, always scanned. */
 export const DEFAULT_SCAN_ATTRIBUTES: readonly string[] = ["aria-label", "alt", "title", "placeholder"];
