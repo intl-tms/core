@@ -182,11 +182,11 @@ describe("highlighter: the stylesheet is valid CSS", () => {
 
 describe("highlight settings", () => {
   it("the defaults apply when nothing is configured", () => {
-    expect(highlightSettings(undefined).colors).toEqual({ highlight: "#4CAF50", active: "#2196F3" });
+    expect(highlightSettings(undefined).colors).toEqual({ highlight: "#8b5cf6", active: "#5b21b6" });
   });
 
   it("a configured colour overrides one default and keeps the other", () => {
-    expect(highlightSettings({ colors: { active: "#ff0000" } }).colors).toEqual({ highlight: "#4CAF50", active: "#ff0000" });
+    expect(highlightSettings({ colors: { active: "#ff0000" } }).colors).toEqual({ highlight: "#8b5cf6", active: "#ff0000" });
   });
 
   it("the built-in attribute set is always scanned", () => {
@@ -198,7 +198,7 @@ describe("highlight settings", () => {
   });
 
   it("a colour that could break out of a declaration falls back to the default", () => {
-    expect(highlightSettings({ colors: { highlight: "red; } body { display: none" } }).colors.highlight).toBe("#4CAF50");
+    expect(highlightSettings({ colors: { highlight: "red; } body { display: none" } }).colors.highlight).toBe("#8b5cf6");
   });
 
   it.each(["#4CAF50", "rgb(10, 20, 30)", "hsl(120 40% 50% / 0.5)", "rebeccapurple"])("a legitimate colour %s is kept", (colour) => {

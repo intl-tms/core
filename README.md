@@ -415,7 +415,7 @@ resolveConfig({
     ],
     toolbar: { search: true, filters: [{ field: "status" }] },
   },
-  colors: { highlight: "#4CAF50", active: "#2196F3" },
+  colors: { highlight: "#8b5cf6", active: "#5b21b6" },  // the defaults; a website's own brand goes here
   scanAttributes: ["data-tooltip"],            // added to aria-label, alt, title, placeholder
 });
 ```
